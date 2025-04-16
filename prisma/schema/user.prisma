@@ -1,0 +1,36 @@
+model User {
+    id                     String                   @id @default(uuid())
+    username               String                   @unique
+    firstName              String?
+    lastName               String?
+    displayName            String?
+    email                  String                   @unique
+    passwordHash           String
+    phoneNumber            String?
+    streetAddress          String?
+    suburb                 String?
+    townCity               String?
+    postcode               String?
+    country                String?
+    avatarUrl              String?
+    backgroundUrl          String?
+    agreeTerms             Boolean                  @default(false)
+    role                   UserRole                 @default(USER)
+    tier                   String                   @default("BRONZE")
+    supportMessages        SupportMessage[]         @relation("UserToSupportMessages") // A user can send multiple support messages
+    Session                Session[]
+    Product                Product[]
+    Slide                  Slide[]
+    NewArrival             NewArrival[]
+    BestSeller             BestSeller[]
+    OnSale                 OnSale[]
+    NewsletterSubscription NewsletterSubscription[]
+    Audio                  Audio[]
+    Order                  Order[]
+    TierAppForm            TierAppForm?
+    Cart                   Cart?
+    Wishlist               Wishlist?
+    PaymentMethods         PaymentMethod[]
+
+    @@map("users")
+}

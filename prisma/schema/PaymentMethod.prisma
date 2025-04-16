@@ -1,0 +1,16 @@
+model PaymentMethod {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardholderName  String
+  cardNumber      String    // Consider encryption for sensitive data
+  expiryMonth     String
+  expiryYear      String
+  cardType        String?   // Visa, Mastercard, etc.
+  isDefault       Boolean   @default(false)
+  lastFourDigits  String    // Store just the last 4 digits for display purposes
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("payment_methods")
+}
