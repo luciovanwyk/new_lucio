@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState } from "react";
+import { ProfileUpdateFormValues } from "./customer/settings/_actions/types";
 
 export type UserRole =
   | "USER"
@@ -9,7 +10,7 @@ export type UserRole =
   | "EDITOR"
   | "ADMIN"
   | "SUPERADMIN"
-  | "ROLE_MANAGER";  // <-- Add this line:
+  | "ROLE_MANAGER";
 
 export interface SessionUser {
   id: string;
@@ -40,6 +41,8 @@ interface SessionContextType {
   updateUser: (updatedUser: Partial<SessionUser>) => void;
   updateAvatar: (newAvatarUrl: string) => void;
   updateBackground: (newBackgroundUrl: string) => void;
+  // Add updateProfile function to SessionContextType
+  updateProfile: (data: ProfileUpdateFormValues) => Promise<void>;
 }
 
 const SessionContext = createContext<SessionContextType | null>(null);
@@ -65,6 +68,27 @@ export default function SessionProvider({
     setUserData((prev) => ({ ...prev, backgroundUrl: newBackgroundUrl }));
   };
 
+  // Add updateProfile implementation
+  const updateProfile = async (data: ProfileUpdateFormValues): Promise<void> => {
+    // Update local state with profile data
+    setUserData((prev) => ({
+      ...prev,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      displayName: data.displayName,
+      username: data.username,
+      email: data.email,
+      phoneNumber: data.phoneNumber || undefined, // Convert null to undefined
+      streetAddress: data.streetAddress,
+      suburb: data.suburb,
+      townCity: data.townCity,
+      postcode: data.postcode,
+      country: data.country,
+    }));
+    
+    return Promise.resolve();
+  };
+
   return (
     <SessionContext.Provider
       value={{
@@ -73,6 +97,7 @@ export default function SessionProvider({
         updateUser,
         updateAvatar,
         updateBackground,
+        updateProfile, // Include the new function in the context value
       }}
     >
       {children}

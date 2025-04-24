@@ -1,5 +1,6 @@
+import { lucia } from "@/lib/auth.config";
 import { cookies } from "next/headers"; // Use Next.js built-in cookies API
-import { lucia } from "./auth.config";
+
 
 export async function getSession(req?: any, res?: any) {
   const cookieStore = cookies();

@@ -1,39 +1,77 @@
-import { PrismaAdapter } from "@lucia-auth/adapter-prisma";
+// auth.config.ts
 import { Lucia } from "lucia";
-import prisma from "@/lib/prisma";
+import { PrismaAdapter } from "@lucia-auth/adapter-prisma";
+import { PrismaClient } from "@prisma/client";
 
-// Create the Prisma adapter for Lucia
-const adapter = new PrismaAdapter(prisma.session, prisma.user);
+// Initialize Prisma client
+const prisma = new PrismaClient();
 
-// Create and export the Lucia instance directly
+// Create Lucia adapter using Prisma
+const adapter = new PrismaAdapter(
+  prisma.session,
+  prisma.user
+);
+
+// Initialize Lucia with the adapter
 export const lucia = new Lucia(adapter, {
   sessionCookie: {
-    expires: false,
+    // Set these attributes for the session cookie
+    name: "auth_session",
+    expires: false, // Session cookies (expire when browser is closed)
     attributes: {
-      secure: process.env.NODE_ENV === "production",
-    },
+      // Cookie security settings
+      secure: process.env.NODE_ENV === "production", // Use secure cookies in production
+      sameSite: "lax", // CSRF protection
+      // Note: httpOnly is handled automatically by Lucia
+      path: "/" // Available across the entire site
+    }
   },
-  getUserAttributes: (attributes) => {
+  getUserAttributes: (databaseUser) => {
+    // Transform database user to the user object provided to the auth handlers
     return {
-      id: attributes.id,
-      username: attributes.username,
-      firstName: attributes.firstName,
-      lastName: attributes.lastName,
-      displayName: attributes.displayName,
-      email: attributes.email,
-      phoneNumber: attributes.phoneNumber,
-      streetAddress: attributes.streetAddress,
-      suburb: attributes.suburb,
-      townCity: attributes.townCity,
-      postcode: attributes.postcode,
-      country: attributes.country,
-      avatarUrl: attributes.avatarUrl,
-      backgroundUrl: attributes.backgroundUrl,
-      role: attributes.role,
-      tier: attributes.tier,
+      id: databaseUser.id,
+      username: databaseUser.username,
+      firstName: databaseUser.firstName,
+      lastName: databaseUser.lastName,
+      displayName: databaseUser.displayName,
+      email: databaseUser.email,
+      phoneNumber: databaseUser.phoneNumber,
+      streetAddress: databaseUser.streetAddress,
+      suburb: databaseUser.suburb,
+      townCity: databaseUser.townCity,
+      postcode: databaseUser.postcode,
+      country: databaseUser.country,
+      avatarUrl: databaseUser.avatarUrl,
+      backgroundUrl: databaseUser.backgroundUrl,
+      role: databaseUser.role,
+      tier: databaseUser.tier
     };
-  },
+  }
 });
 
-// Declare the Lucia type so TypeScript can understand it
-export type Auth = typeof lucia;
+// Type declaration for better TypeScript support
+declare module "lucia" {
+  interface Register {
+    Lucia: typeof lucia;
+    DatabaseUserAttributes: {
+      id: string;
+      username: string;
+      firstName: string;
+      lastName: string;
+      displayName: string;
+      email: string;
+      passwordHash: string;
+      phoneNumber: string;
+      streetAddress: string;
+      suburb: string | null;
+      townCity: string;
+      postcode: string;
+      country: string;
+      avatarUrl: string | null;
+      backgroundUrl: string | null;
+      agreeTerms: boolean;
+      role: string;
+      tier: string;
+    };
+  }
+}
