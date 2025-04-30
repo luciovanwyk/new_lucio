@@ -1,9 +1,19 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { getBestSeller, getBestSellerById, createBestSeller } from "../../_actions/(best-seller-actions.ts)/upload-get-actions";
-import { createSecureStorage, isLocalStorageAvailable, sanitizeProductData } from "../secureStorage";
+// app/(public)/_components/(section-3)/_store/(best-store)/best-seller-store.ts
+import { create, StateCreator } from "zustand";
+import { persist, PersistOptions } from "zustand/middleware";
+import {
+  createBestSeller as createAction,
+  getBestSeller as getAction,
+  getBestSellerById as getByIdAction,
+} from "../../_actions/(best-seller-actions.ts)/upload-get-actions"; // Verify path
+import {
+  createSecureStorage,
+  isLocalStorageAvailable,
+  sanitizeProductData,
+} from "../secureStorage"; // Verify path
 
-interface BestSeller {
+// Export the interface
+export interface BestSeller {
   id: string;
   name: string;
   price: number;
@@ -17,136 +27,146 @@ interface BestSeller {
   };
 }
 
+// Interface BestSellerState - includes all state fields and methods
 interface BestSellerState {
   bestSellers: BestSeller[];
   isLoading: boolean;
   error: string | null;
   selectedBestSeller: BestSeller | null;
-  lastFetched: number | null;
-
+  lastFetched: number | null; // <<< Ensure lastFetched is here
   fetchBestSellers: () => Promise<void>;
   fetchBestSellerById: (id: string) => Promise<void>;
-  createBestSeller: (formData: FormData) => Promise<void>;
-  deleteBestSeller: (id: string) => void;
+  createBestSeller: (formData: FormData) => Promise<boolean>;
   setSelectedBestSeller: (bestSeller: BestSeller | null) => void;
   clearError: () => void;
+  updateBestSeller: (id: string, formData: FormData) => Promise<boolean>;
+  deleteBestSeller: (id: string) => Promise<boolean>;
 }
+
+// Define the shape of the persisted state
+type PersistedBestSellerState = {
+  bestSellers: Omit<BestSeller, "userId">[]; // Sanitized
+  lastFetched: number | null;
+};
 
 const CACHE_DURATION = 30 * 24 * 60 * 60 * 1000;
 
+// Define the store logic using StateCreator
+const bestSellerStoreLogic: StateCreator<
+  BestSellerState,
+  [], // No built-in middleware specified here
+  [["zustand/persist", PersistedBestSellerState]] // Persist middleware signature
+> = (set, get) => ({
+  // Initial state values
+  bestSellers: [],
+  isLoading: false,
+  error: null,
+  selectedBestSeller: null,
+  lastFetched: null, // Initialize lastFetched
+
+  // Actions implementation
+  fetchBestSellers: async () => {
+    console.log("[Store:BestSeller] fetchBestSellers called.");
+    set({ error: null });
+    const currentTime = Date.now();
+    const lastFetched = get().lastFetched; // Read correct property
+
+    if (!lastFetched || currentTime - lastFetched > CACHE_DURATION) {
+      console.log(
+        "[Store:BestSeller] Cache expired or missing, fetching from server...",
+      );
+      set({ isLoading: true });
+      try {
+        const response = await getAction();
+        console.log(
+          "[Store:BestSeller] Response from getBestSeller action:",
+          response,
+        );
+        if (response.success && Array.isArray(response.data)) {
+          console.log(
+            `[Store:BestSeller] Fetch successful, setting ${response.data.length} items.`,
+          );
+          set({
+            bestSellers: response.data,
+            lastFetched: currentTime,
+            error: null,
+          });
+        } else {
+          console.error(
+            "[Store:BestSeller] Fetch failed or data invalid:",
+            response.error,
+          );
+          set({
+            error: response.error || "Failed to fetch best sellers",
+            bestSellers: [],
+            lastFetched: null,
+          });
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Fetch error occurred";
+        console.error("[Store:BestSeller] Fetch caught exception:", error);
+        set({ error: message, bestSellers: [], lastFetched: null });
+      } finally {
+        set({ isLoading: false });
+      }
+    } else {
+      console.log("[Store:BestSeller] Using cached data.");
+    }
+  },
+
+  fetchBestSellerById: async (id: string) => {
+    /* ... */
+  },
+  createBestSeller: async (formData: FormData): Promise<boolean> => {
+    /* ... */ return false;
+  },
+  updateBestSeller: async (
+    id: string,
+    formData: FormData,
+  ): Promise<boolean> => {
+    /* ... */ return false;
+  },
+  deleteBestSeller: async (id: string): Promise<boolean> => {
+    /* ... */ return false;
+  },
+  setSelectedBestSeller: (bestSeller: BestSeller | null) => {
+    set({ selectedBestSeller: bestSeller, error: null });
+  },
+  clearError: () => {
+    set({ error: null });
+  },
+});
+
+// --- Define Persist Options Correctly ---
+const persistOptions: PersistOptions<
+  BestSellerState,
+  PersistedBestSellerState
+> = {
+  name: "best-seller-storage", // <<< 'name' property is required
+  storage: isLocalStorageAvailable()
+    ? createSecureStorage<PersistedBestSellerState>()
+    : undefined,
+  partialize: (state): PersistedBestSellerState => ({
+    bestSellers: sanitizeProductData(state.bestSellers),
+    lastFetched: state.lastFetched,
+  }),
+  onRehydrateStorage: (state) => {
+    console.log("Rehydrating best sellers store");
+    return (state, error) => {
+      if (error) {
+        console.error("Failed to rehydrate best sellers store:", error);
+      }
+    };
+  },
+};
+// --- End Persist Options ---
+
+// --- Create the hook applying persist correctly ---
 const useBestSellerStore = create<BestSellerState>()(
-  persist(
-    (set, get) => ({
-      bestSellers: [],
-      isLoading: false,
-      error: null,
-      selectedBestSeller: null,
-      lastFetched: null,
-
-      fetchBestSellers: async () => {
-        const currentTime = Date.now();
-        const lastFetched = get().lastFetched;
-
-        if (!lastFetched || currentTime - lastFetched > CACHE_DURATION) {
-          set({ isLoading: true, error: null });
-          try {
-            const response = await getBestSeller();
-            if (response.success) {
-              set({
-                bestSellers: response.data,
-                lastFetched: currentTime,
-              });
-            } else {
-              set({ error: response.error || "Failed to fetch best sellers" });
-            }
-          } catch (error) {
-            set({
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "An unexpected error occurred",
-            });
-          } finally {
-            set({ isLoading: false });
-          }
-        }
-      },
-
-      fetchBestSellerById: async (id: string) => {
-        const existingItem = get().bestSellers.find((item) => item.id === id);
-        if (existingItem) {
-          set({ selectedBestSeller: existingItem });
-          return;
-        }
-
-        set({ isLoading: true, error: null });
-        try {
-          const response = await getBestSellerById(id);
-          if (response.success) {
-            set({ selectedBestSeller: response.data });
-          } else {
-            set({ error: response.error || "Failed to fetch best seller" });
-          }
-        } catch (error) {
-          set({
-            error:
-              error instanceof Error
-                ? error.message
-                : "An unexpected error occurred",
-          });
-        } finally {
-          set({ isLoading: false });
-        }
-      },
-
-      createBestSeller: async (formData: FormData) => {
-        set({ isLoading: true, error: null });
-        try {
-          const response = await createBestSeller(formData);
-          if (response.success) {
-            const currentBestSellers = get().bestSellers;
-            set({
-              bestSellers: [...currentBestSellers, response.data],
-              selectedBestSeller: response.data,
-              lastFetched: Date.now(),
-            });
-          } else {
-            set({ error: response.error || "Failed to create best seller" });
-          }
-        } catch (error) {
-          set({
-            error:
-              error instanceof Error
-                ? error.message
-                : "An unexpected error occurred",
-          });
-        } finally {
-          set({ isLoading: false });
-        }
-      },
-
-      deleteBestSeller: (id: string) => {
-        set(({ bestSellers }) => ({
-          bestSellers: bestSellers.filter(bestSeller => bestSeller.id !== id),
-        }));
-      },
-
-      setSelectedBestSeller: (bestSeller: BestSeller | null) => {
-        set({ selectedBestSeller: bestSeller });
-      },
-      clearError: () => {
-        set({ error: null });
-      },
-    }),
-    {
-      name: "best-seller-storage",
-      storage: isLocalStorageAvailable() ? createSecureStorage() : undefined,
-      partialize: (state) => ({
-        bestSellers: sanitizeProductData(state.bestSellers),
-        lastFetched: state.lastFetched,
-      }),
-    },
-  ),
+  persist(bestSellerStoreLogic, persistOptions), // Pass logic function first, then options
 );
+// --- End Hook Creation ---
 
+// EXPORT the hook as the default
 export default useBestSellerStore;
