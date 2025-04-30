@@ -1,126 +1,120 @@
-import React, { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Star } from "lucide-react";
-import useBestSellerStore from "../../_store/(best-store)/best-seller-store";
+// BestSellerUploadModal.tsx
+import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
-interface UploadModalProps {
+interface BestSellerUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
+  product: any;
+  isEditing: boolean;
+  onSave: (updatedProduct: any) => void;
 }
 
-export const BestSellerUploadModal: React.FC<UploadModalProps> = ({
+export const BestSellerUploadModal: React.FC<BestSellerUploadModalProps> = ({
   isOpen,
   onClose,
+  product,
+  isEditing,
+  onSave,
 }) => {
-  const [rating, setRating] = useState(0);
-  const { createBestSeller, isLoading, error, clearError } =
-    useBestSellerStore();
+  const [formData, setFormData] = useState<any>({});
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    clearError();
-
-    if (rating === 0) {
-      return; // Could add error handling for rating
+  // Reset formData when product prop changes and ensure product is not null
+  useEffect(() => {
+    if (product) {
+      setFormData(product);
     }
+  }, [product]);
 
-    const formData = new FormData(e.currentTarget);
-    formData.append("rating", rating.toString());
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
-    try {
-      await createBestSeller(formData);
-      onClose();
-      // Reset form state
-      setRating(0);
-      e.currentTarget.reset();
-    } catch (error) {
-      console.error("Error uploading best seller:", error);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setFormData(prev => ({ ...prev, imageUrl: event.target?.result as string }));
+      };
+      reader.readAsDataURL(file);
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (formData.id) { // Ensure formData has an id before saving
+      onSave(formData);
+    }
+    onClose();
+  };
+
+  // Only render the dialog if isOpen is true and product is not null
+  if (!isOpen || !product) {
+    return null;
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add Best Seller</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Product' : 'Add New Product'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Product Name</Label>
+          <div>
+            <Label>Product Name</Label>
             <Input
-              id="name"
               name="name"
-              placeholder="Enter product name"
+              value={formData.name || ''}
+              onChange={handleChange}
               required
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="price">Price</Label>
+          <div>
+            <Label>Price</Label>
             <Input
-              id="price"
               name="price"
               type="number"
-              step="0.01"
-              min="0"
-              placeholder="0.00"
+              value={formData.price || ''}
+              onChange={handleChange}
               required
+              min="0"
+              step="0.01"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="image">Product Image</Label>
+          <div>
+            <Label>Rating (1-5)</Label>
             <Input
-              id="image"
-              name="image"
+              name="rating"
+              type="number"
+              value={formData.rating || ''}
+              onChange={handleChange}
+              required
+              min="1"
+              max="5"
+            />
+          </div>
+
+          <div>
+            <Label>Product Image</Label>
+            <Input
               type="file"
               accept="image/*"
-              required
+              onChange={handleFileChange}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Rating</Label>
-            <div className="flex gap-1">
-              {[1, 2, 3, 4, 5].map((value) => (
-                <Star
-                  key={value}
-                  className={`w-6 h-6 cursor-pointer transition-colors ${
-                    value <= rating
-                      ? "fill-yellow-400 text-yellow-400"
-                      : "text-gray-300 hover:text-yellow-200"
-                  }`}
-                  onClick={() => setRating(value)}
-                />
-              ))}
-            </div>
-          </div>
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
-
           <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                clearError();
-                setRating(0);
-                onClose();
-              }}
-            >
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || rating === 0}>
-              {isLoading ? "Uploading..." : "Upload"}
-            </Button>
+            <Button type="submit">Save Changes</Button>
           </div>
         </form>
       </DialogContent>

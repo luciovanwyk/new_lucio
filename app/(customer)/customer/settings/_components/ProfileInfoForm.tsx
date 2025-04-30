@@ -1,8 +1,9 @@
-"use client";
+// "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,10 +18,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Loader2 } from "lucide-react";
 import { SessionUser } from "@/app/(customer)/SessionProvider";
-import {
-  ProfileUpdateFormValues,
-  profileUpdateSchema,
-} from "../_actions/types";
+import { ProfileUpdateFormValues, profileUpdateSchema } from "../_actions/types";
+import { updateCustomerDetails } from "../_actions/actions";
 
 interface ProfileInfoFormProps {
   user: SessionUser & {
@@ -30,19 +29,19 @@ interface ProfileInfoFormProps {
     townCity?: string | null;
     postcode?: string | null;
   };
-  onSubmit: (data: ProfileUpdateFormValues) => Promise<void>;
-  isSubmitting: boolean;
 }
 
 const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
   user,
-  onSubmit,
-  isSubmitting,
 }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const {
     register,
     handleSubmit,
     formState: { errors },
+    clearErrors,
+    setError,
   } = useForm<ProfileUpdateFormValues>({
     resolver: zodResolver(profileUpdateSchema),
     defaultValues: {
@@ -60,6 +59,37 @@ const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
     },
   });
 
+  const handleFormSubmit = async (data: ProfileUpdateFormValues) => {
+    setIsSubmitting(true);
+    clearErrors();
+
+    try {
+      const result = await updateCustomerDetails(data);
+
+      if (result.success) {
+        toast.success(result.message || "Profile updated successfully! 🎉");
+        // Optionally reset the form if needed
+        // form.reset();
+      } else {
+        toast.error(result.error || "Failed to update profile. 😞");
+
+        if (result.fieldErrors) {
+          Object.keys(result.fieldErrors).forEach((field) => {
+            setError(field as keyof ProfileUpdateFormValues, {
+              type: "server",
+              message: result.fieldErrors[field],
+            });
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Client error updating profile:", error);
+      toast.error("An unexpected client error occurred. 🙁");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Card className="shadow-xl border-2 border-indigo-200">
       <CardHeader>
@@ -70,7 +100,7 @@ const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
           Keep your profile fresh! Update your details and address below.
         </CardDescription>
       </CardHeader>
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(handleFormSubmit)}>
         <CardContent className="space-y-6">
           {/* Basic Info Section */}
           <div className="space-y-4">

@@ -56,7 +56,7 @@ export default function NavigationLinks({
   // Add role-specific links
   if (user.role === "ADMIN" || user.role === "SUPERADMIN") {
     navItems.push({
-      href: "/admin/dashboard",
+      href: "/admin",
       icon: UserIcon,
       label: "Admin Dashboard",
       tooltipLabel: "Admin Dashboard",
@@ -83,7 +83,7 @@ export default function NavigationLinks({
 
   if (user.role === "ROLE_MANAGER") {
     navItems.push({
-      href: "/role-manager/dashboard",
+      href: "/role-manager",
       icon: UserIcon,
       label: "Role Manager Dashboard",
       tooltipLabel: "Role Manager Dashboard",

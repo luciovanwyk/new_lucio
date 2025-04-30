@@ -26,12 +26,9 @@ const MobileMenu = ({
     e.preventDefault();
     onClose();
 
-    // Check if we're already on the dashboard page
     if (pathname === dashboardUrl) {
-      // If already on dashboard, perform a hard window reload
       window.location.reload();
     } else {
-      // If coming from a different page, navigate to dashboard with hard navigation
       window.location.href = dashboardUrl;
     }
   };

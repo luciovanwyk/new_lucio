@@ -37,11 +37,15 @@ export const checkoutDetailsSchema = z.object({
 
 export type CheckoutDetailsFormValues = z.infer<typeof checkoutDetailsSchema>;
 
+
 // --- General Action Result Type ---
 // Can be used for profile and checkout updates
 export interface UpdateActionResult {
-  success?: string | null; // Success message
-  error?: string | null; // Error message
+  success: boolean; // Use boolean for success/failure status
+  message?: string; // Message for success or general info
+  error?: string; // General error message if success is false
+  // Specific field errors, keys should match form values
+  fieldErrors?: Partial<Record<keyof ProfileUpdateFormValues, string>>;
 }
 
 // --- NEW: Password Change Schema and Type ---

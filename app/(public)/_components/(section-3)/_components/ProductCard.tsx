@@ -1,3 +1,4 @@
+// ProductCard.tsx
 import React from "react";
 import Image from "next/image";
 import { Package, Star, Pencil, Trash2 } from "lucide-react";

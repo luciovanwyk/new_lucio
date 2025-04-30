@@ -31,7 +31,7 @@ declare module "lucia" {
   }
 }
 
-export async function validateRequest(): Promise<
+export async function validateRequest(req?: unknown): Promise<
   { user: any; session: any } | { user: null; session: null }
 > {
   const sessionId = cookies().get(lucia.sessionCookieName)?.value ?? null;

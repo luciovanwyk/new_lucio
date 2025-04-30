@@ -12,7 +12,7 @@ import { getRoutes } from "./routes";
 import AuthModal from "@/app/(auth)/_components/AuthTabs";
 import { useCart } from "../../productId/cart/_store/use-cart-store-hooks";
 import { usePathname } from "next/navigation";
-import TierBadge from "./TierBadge"; // Import the TierBadge component
+import TierBadge from "./TierBadge";
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -33,7 +33,6 @@ export default function Navbar() {
     };
 
     const handleClickOutside = (event: MouseEvent) => {
-      // Close mobile menu if clicking outside
       if (
         mobileMenuOpen &&
         mobileMenuRef.current &&
@@ -44,7 +43,6 @@ export default function Navbar() {
         setMobileMenuOpen(false);
       }
 
-      // Close cart menu if clicking outside
       if (
         cartOpen &&
         cartMenuRef.current &&
@@ -65,19 +63,14 @@ export default function Navbar() {
     };
   }, [mobileMenuOpen, cartOpen]);
 
-  // Get routes based on user authentication status
-  const routes = getRoutes(!!user);
+  const routes = getRoutes(!!user, user?.role);
 
-  // This function handles dashboard navigation with a hard refresh
   const handleDashboardClick = (e: React.MouseEvent) => {
     e.preventDefault();
 
-    // Check if we're already on the dashboard page
     if (pathname === "/customer") {
-      // If already on dashboard, perform a hard window reload
       window.location.reload();
     } else {
-      // If coming from a different page, navigate to dashboard with hard navigation
       window.location.href = "/customer";
     }
   };
@@ -101,13 +94,12 @@ export default function Navbar() {
           />
         </Link>
 
-        {/* Desktop Navigation */}
         <div className="hidden md:flex items-center gap-4">
           {routes.map((route) =>
             route.name === "My Dashboard" ? (
               <a
                 key={route.path}
-                href="/customer"
+                href={route.path}
                 onClick={handleDashboardClick}
                 className="px-4 py-2 rounded-md text-gray-300 transition-all duration-300 
                   hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-red-700 
@@ -128,7 +120,6 @@ export default function Navbar() {
             ),
           )}
 
-          {/* Cart Icon for logged-in users - Desktop */}
           {user && (
             <div className="relative">
               <button
@@ -148,7 +139,6 @@ export default function Navbar() {
             </div>
           )}
 
-          {/* Auth Button with Tier Badge */}
           <div className="ml-2 text-gray-300 flex items-center gap-2">
             {!user ? (
               <AuthModal />
@@ -161,9 +151,7 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Mobile Navigation */}
         <div className="md:hidden flex items-center gap-2">
-          {/* Cart Icon for logged-in users - Mobile */}
           {user && (
             <div className="relative">
               <button
@@ -183,7 +171,6 @@ export default function Navbar() {
             </div>
           )}
 
-          {/* Auth Button with Tier Badge - Mobile */}
           <div className="text-gray-300 flex items-center gap-2">
             {!user ? (
               <AuthModal />
@@ -195,7 +182,6 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile Menu Trigger */}
           <button
             ref={mobileMenuButtonRef}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -205,7 +191,6 @@ export default function Navbar() {
             <span className="sr-only">Toggle menu</span>
           </button>
 
-          {/* Mobile Menu Component */}
           <MobileMenu
             isOpen={mobileMenuOpen}
             onClose={() => setMobileMenuOpen(false)}
@@ -216,7 +201,6 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* Global Cart - will be shown for both mobile and desktop */}
       {user && (
         <Cart
           isOpen={cartOpen}
