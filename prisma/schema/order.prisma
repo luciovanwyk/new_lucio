@@ -1,7 +1,8 @@
 model Order {
   id String @id @default(uuid())
 
-  // Order Details & Billing/Shipping Info
+  paymentIntentId String? @unique
+
   captivityBranch     String
   methodOfCollection  String
   salesRep            String?
@@ -17,37 +18,21 @@ model Order {
   postcode            String
   phone               String
   email               String
-  paymentMethod       String?     // Added based on your validation schema
   orderNotes          String?
-  status              OrderStatus @default(PENDING)
-  agreeTerms          Boolean     @default(false)
-  receiveEmailReviews Boolean?    @default(false)
+  status              OrderStatus 
+  totalAmount         Float
+  agreeTerms          Boolean
+  receiveEmailReviews Boolean?
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
-  totalAmount         Float       // Final total amount customer pays (incl. VAT, after discount)
-  subtotal            Float?      // Amount *after* discount, *before* VAT
-  discountAmount      Float?      // Amount deducted due to tier discount
-  vatAmount           Float?      // Amount of VAT added to the subtotal
-  originalSubtotal    Float?      // Amount *before* discount and *before* VAT
-  tierApplied         String?     // Tier used for discount (e.g., "GOLD", "SILVER")
 
-  orderItems          OrderItem[] // Relation to individual items in the order
+  orderItems          OrderItem[]
 
-  userId              String                 // Foreign key for the User
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade) // Relation to User
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade) 
+
+
+  @@index([paymentIntentId])
 
   @@map("orders")
-}
-
-
-model OrderItem {
-  id                  String    @id @default(uuid())
-  orderId             String
-  variationId         String
-  quantity            Int
-  price               Float     // Price *per item* (usually after discount, before VAT)
-  order               Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  variation           Variation @relation(fields: [variationId], references: [id], onDelete: Restrict) 
-
-  @@map("order_items")
 }

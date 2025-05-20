@@ -1,8 +1,11 @@
+// app/(customer)/SessionProvider.tsx
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
-import { ProfileUpdateFormValues } from "./customer/settings/_actions/types";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { Session as LuciaSession } from "lucia";
+import { Tier } from "@prisma/client"; // <<< Import Tier enum
 
+// Define UserRole (ensure it's comprehensive if needed across customer context)
 export type UserRole =
   | "USER"
   | "CUSTOMER"
@@ -10,8 +13,9 @@ export type UserRole =
   | "EDITOR"
   | "ADMIN"
   | "SUPERADMIN"
-  | "ROLE_MANAGER";
+  | "MANAGER";
 
+// --- Updated SessionUser Interface ---
 export interface SessionUser {
   id: string;
   username: string;
@@ -19,96 +23,91 @@ export interface SessionUser {
   lastName: string;
   displayName: string;
   email: string;
-  phoneNumber?: string;
-  streetAddress?: string;
-  suburb?: string | null;
-  townCity?: string;
-  postcode?: string;
-  country?: string;
+  postcode: string; // Already present
+  country: string; // Already present
   avatarUrl: string | null;
   backgroundUrl: string | null;
   role: UserRole;
-}
+  tier: Tier;
+  phoneNumber?: string | null; // Already optional
 
-export interface SessionWithUser {
-  id: string; // example session property
-  // add other session properties as needed
+  // --- ADDED Optional Fields needed by settings forms ---
+  streetAddress?: string | null;
+  suburb?: string | null; // Represents Apt/Suite in forms
+  townCity?: string | null;
+  // Ensure these fields are actually being fetched and passed in layout.tsx
+  // --- END Add Optional Fields ---
 }
+// --- END OF CHANGE ---
 
-interface SessionContextType {
+// SessionWithUser (no changes needed)
+export interface SessionWithUser extends LuciaSession {
   user: SessionUser;
-  session: SessionWithUser;
-  updateUser: (updatedUser: Partial<SessionUser>) => void;
-  updateAvatar: (newAvatarUrl: string) => void;
-  updateBackground: (newBackgroundUrl: string) => void;
-  // Add updateProfile function to SessionContextType
-  updateProfile: (data: ProfileUpdateFormValues) => Promise<void>;
 }
 
-const SessionContext = createContext<SessionContextType | null>(null);
+// Define the type for allowed updates for THIS provider
+// Now includes the optional address fields
+type CustomerProfileUpdates = Partial<Omit<SessionUser, "id" | "role">>;
+
+// SessionContext interface (no changes needed in structure)
+interface SessionContext {
+  user: SessionUser | null;
+  session: SessionWithUser | null;
+  updateProfile: (updates: CustomerProfileUpdates) => void;
+}
+
+const SessionContext = createContext<SessionContext | null>(null);
 
 export default function SessionProvider({
   children,
   value,
 }: {
   children: React.ReactNode;
-  value: { user: SessionUser; session: SessionWithUser };
+  // Expect the updated SessionUser type defined in this file
+  value: {
+    user: SessionUser | null;
+    session: LuciaSession | null;
+  };
 }) {
-  const [userData, setUserData] = useState<SessionUser>(value.user);
+  // State uses updated SessionUser type
+  const [userData, setUserData] = useState<SessionUser | null>(value.user);
 
-  const updateUser = (updatedUser: Partial<SessionUser>) => {
-    setUserData((prev) => ({ ...prev, ...updatedUser }));
+  useEffect(() => {
+    // Ensure incoming value.user conforms to updated type
+    setUserData(value.user);
+  }, [value.user]);
+
+  // updateProfile function implementation
+  const updateProfile = (updates: CustomerProfileUpdates) => {
+    setUserData((prevUser) => {
+      if (!prevUser) return null;
+      // Create a new user object with updates applied
+      const updatedUser = { ...prevUser, ...updates };
+      return updatedUser;
+    });
   };
 
-  const updateAvatar = (newAvatarUrl: string) => {
-    setUserData((prev) => ({ ...prev, avatarUrl: newAvatarUrl }));
-  };
-
-  const updateBackground = (newBackgroundUrl: string) => {
-    setUserData((prev) => ({ ...prev, backgroundUrl: newBackgroundUrl }));
-  };
-
-  // Add updateProfile implementation
-  const updateProfile = async (data: ProfileUpdateFormValues): Promise<void> => {
-    // Update local state with profile data
-    setUserData((prev) => ({
-      ...prev,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      displayName: data.displayName,
-      username: data.username,
-      email: data.email,
-      phoneNumber: data.phoneNumber || undefined, // Convert null to undefined
-      streetAddress: data.streetAddress,
-      suburb: data.suburb,
-      townCity: data.townCity,
-      postcode: data.postcode,
-      country: data.country,
-    }));
-    
-    return Promise.resolve();
+  const sessionValue: SessionContext = {
+    user: userData,
+    session:
+      value.session && userData ? { ...value.session, user: userData } : null,
+    updateProfile, // Provide the update function
   };
 
   return (
-    <SessionContext.Provider
-      value={{
-        user: userData,
-        session: value.session,
-        updateUser,
-        updateAvatar,
-        updateBackground,
-        updateProfile, // Include the new function in the context value
-      }}
-    >
+    <SessionContext.Provider value={sessionValue}>
       {children}
     </SessionContext.Provider>
   );
 }
 
+// useSession hook remains the same
 export function useSession() {
   const context = useContext(SessionContext);
   if (!context) {
-    throw new Error("useSession must be used within a SessionProvider");
+    throw new Error(
+      "useSession (Customer) must be used within its specific SessionProvider",
+    );
   }
   return context;
 }

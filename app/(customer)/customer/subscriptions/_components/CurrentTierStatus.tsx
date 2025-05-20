@@ -1,19 +1,53 @@
-// src/components/membership/CurrentTierStatus.tsx
-"use client"; // KEEP THIS
+// app/(customer)/subscriptions/_components/CurrentTierStatus.tsx
+"use client";
 
 import React from "react";
 import { Medal, Clock, ArrowRight } from "lucide-react";
-import { getTierConfig } from "@/lib/config/tiers";
 
-// Types for the component props
 type CurrentTierStatusProps = {
-  currentTier: string; // e.g., "GOLD"
+  currentTier: string;
   userName?: string;
-  latestApplication: {
-    id: string;
-    package: string; // e.g., "PLATINUM"
-    createdAt: Date;
-  } | null;
+  latestApplication: { id: string; package: string; createdAt: Date } | null;
+};
+
+// Tier information mapping with dark mode variants
+const TIER_DETAILS = {
+  BRONZE: {
+    title: "Bronze Tier",
+    color: "text-amber-700 dark:text-amber-400",
+    bgColor: "bg-amber-100 dark:bg-amber-900/40", // Use opacity for dark background
+    borderColor: "border-amber-300 dark:border-amber-700",
+    benefits: [
+      /* ... */
+    ],
+  },
+  SILVER: {
+    title: "Silver Tier",
+    color: "text-gray-600 dark:text-gray-400",
+    bgColor: "bg-gray-100 dark:bg-gray-700/40",
+    borderColor: "border-gray-300 dark:border-gray-600",
+    benefits: [
+      /* ... */
+    ],
+  },
+  GOLD: {
+    title: "Gold Tier",
+    color: "text-yellow-600 dark:text-yellow-400",
+    bgColor: "bg-yellow-100 dark:bg-yellow-900/40",
+    borderColor: "border-yellow-300 dark:border-yellow-700",
+    benefits: [
+      /* ... */
+    ],
+  },
+  PLATINUM: {
+    title: "Platinum Tier",
+    color: "text-blue-700 dark:text-blue-400",
+    bgColor: "bg-blue-100 dark:bg-blue-900/40",
+    borderColor: "border-blue-300 dark:border-blue-700",
+    benefits: [
+      /* ... */
+    ],
+  },
 };
 
 export default function CurrentTierStatus({
@@ -21,13 +55,9 @@ export default function CurrentTierStatus({
   userName,
   latestApplication,
 }: CurrentTierStatusProps) {
-  // Get configurations using the helper function from centralized config
-  const currentTierConfig = getTierConfig(currentTier);
-  const appliedTierConfig = latestApplication
-    ? getTierConfig(latestApplication.package)
-    : null;
+  const safeCurrentTier = currentTier as keyof typeof TIER_DETAILS; // Type assertion
+  const tierDetails = TIER_DETAILS[safeCurrentTier] || TIER_DETAILS.BRONZE; // Fallback
 
-  // Format application date if exists
   const formattedDate = latestApplication
     ? new Date(latestApplication.createdAt).toLocaleDateString("en-US", {
         year: "numeric",
@@ -35,45 +65,62 @@ export default function CurrentTierStatus({
         day: "numeric",
       })
     : null;
+  const safeAppliedPackage =
+    latestApplication?.package as keyof typeof TIER_DETAILS;
+  const appliedTierDetails = latestApplication
+    ? TIER_DETAILS[safeAppliedPackage]
+    : null;
 
   return (
-    <div>
-      <div className="flex items-start justify-between mb-4"> {/* Added mb-4 */}
+    // Removed outer div as CardContent provides padding
+    <>
+      <div className="flex items-start justify-between mb-4">
+        {" "}
+        {/* Adjusted structure slightly */}
         <div>
-          <h2 className="text-xl font-semibold mb-2">
-            Current Membership Status
-          </h2>
-          <div className="flex items-center gap-2"> {/* Removed mb-4 */}
-            <span className="font-medium text-gray-700">
+          {/* Use semantic colors */}
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-medium text-foreground">
               Hello, {userName || "Customer"}
             </span>
-            <span className="text-gray-500">|</span>
-            <span className="font-medium">Your current tier:</span>
+            <span className="text-muted-foreground">|</span>
+            <span className="font-medium text-foreground">
+              Your current tier:
+            </span>
           </div>
         </div>
-        {/* Optional: Add button or link here if needed */}
       </div>
 
       {/* Current Tier Display */}
       <div
-        className={`flex items-center p-4 rounded-lg ${currentTierConfig.bgColor} ${currentTierConfig.borderColor} border mb-6`}
+        className={`flex items-center p-4 rounded-lg border mb-6 ${tierDetails.bgColor} ${tierDetails.borderColor}`}
       >
-        <Medal className={`w-12 h-12 mr-4 ${currentTierConfig.color}`} />
+        <Medal
+          className={`w-10 h-10 sm:w-12 sm:h-12 mr-4 flex-shrink-0 ${tierDetails.color}`}
+        />
         <div>
-          <h3 className="text-lg font-semibold">{currentTierConfig.title}</h3>
-          <p className="text-gray-700">Enjoy your exclusive benefits.</p> {/* Slightly adjusted text */}
+          <h3 className={`text-lg font-semibold ${tierDetails.color}`}>
+            {tierDetails.title}
+          </h3>
+          <p className="text-sm text-foreground/90 dark:text-foreground/80">
+            Enjoy your exclusive benefits
+          </p>
         </div>
       </div>
 
       {/* Current Benefits */}
       <div className="mb-6">
-        <h3 className="font-medium mb-3">Your Current Benefits:</h3> {/* Added mb-3 */}
-        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2"> {/* Adjusted grid and gap */}
-          {currentTierConfig.benefits.map((benefit, index) => (
-            <li key={index} className="flex items-center text-sm text-gray-700"> {/* Adjusted text color */}
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-500 mr-2 flex-shrink-0">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
-              </svg>
+        <h3 className="font-medium mb-2 text-foreground">
+          Your Current Benefits:
+        </h3>
+        <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+          {tierDetails.benefits.map((benefit, index) => (
+            <li
+              key={index}
+              className="flex items-center text-sm text-muted-foreground"
+            >
+              {/* Use theme primary/success color for checkmark */}
+              <span className="text-primary dark:text-primary mr-2">✓</span>
               <span>{benefit}</span>
             </li>
           ))}
@@ -81,40 +128,48 @@ export default function CurrentTierStatus({
       </div>
 
       {/* Pending Application */}
-      {latestApplication && appliedTierConfig && (
-        <div className="mt-8 border-t pt-6">
+      {latestApplication && appliedTierDetails && (
+        <div className="mt-8 border-t border-border pt-6">
           <div className="flex items-center mb-4">
-            <Clock className="w-5 h-5 text-blue-600 mr-2" /> {/* Adjusted color */}
-            <h3 className="font-semibold text-gray-800">Pending Application</h3> {/* Adjusted color */}
+            <Clock className="w-5 h-5 text-primary dark:text-primary mr-2" />{" "}
+            {/* Use primary color */}
+            <h3 className="font-semibold text-foreground">
+              Pending Application
+            </h3>
           </div>
 
-          <div className="flex items-center gap-3 mb-4"> {/* Added mb-4 */}
+          <div className="flex items-center gap-3 mb-2">
             {/* Current Tier Icon */}
-            <div className={`p-3 rounded-lg ${currentTierConfig.bgColor}`}>
-              <Medal className={`w-6 h-6 ${currentTierConfig.color}`} />
+            <div
+              className={`p-2 rounded-lg ${TIER_DETAILS[safeCurrentTier]?.bgColor || TIER_DETAILS.BRONZE.bgColor}`}
+            >
+              <Medal
+                className={`w-6 h-6 ${TIER_DETAILS[safeCurrentTier]?.color || TIER_DETAILS.BRONZE.color}`}
+              />
             </div>
-
-            <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
-
+            <ArrowRight className="w-5 h-5 text-muted-foreground" />
             {/* Applied Tier Icon */}
-            <div className={`p-3 rounded-lg ${appliedTierConfig.bgColor}`}>
-              <Medal className={`w-6 h-6 ${appliedTierConfig.color}`} />
+            <div className={`p-2 rounded-lg ${appliedTierDetails.bgColor}`}>
+              <Medal className={`w-6 h-6 ${appliedTierDetails.color}`} />
             </div>
-
-            {/* Application Details */}
-            <div className="flex-1 min-w-0"> {/* Added for text wrapping */}
-              <p className="font-medium text-gray-800">{appliedTierConfig.title}</p>
-              <p className="text-sm text-gray-600 truncate"> {/* Added truncate */}
-                Application submitted on {formattedDate}
+            {/* Text */}
+            <div>
+              <p className="font-medium text-foreground">
+                {appliedTierDetails.title}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Applied on {formattedDate}
               </p>
             </div>
           </div>
 
-          <p className="text-sm bg-blue-50 p-3 rounded border border-blue-200 text-blue-800"> {/* Adjusted colors */}
-            Your application is currently under review. This process typically takes 2-3 business days. We will notify you once your application has been processed.
+          {/* Notification Box */}
+          <p className="text-sm bg-blue-100 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300 p-3 rounded mt-4">
+            Your application is under review (typically 2-3 business days).
+            We&apos;ll notify you once processed.
           </p>
         </div>
       )}
-    </div>
+    </>
   );
 }

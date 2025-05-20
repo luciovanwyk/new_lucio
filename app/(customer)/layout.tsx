@@ -1,12 +1,14 @@
+// app/(customer)/layout.tsx
 import { validateRequest } from "@/auth";
 import { redirect } from "next/navigation";
-import SessionProvider from "./SessionProvider";
+import SessionProvider, { SessionUser } from "./SessionProvider"; // <<< Ensure SessionUser includes all fields
 import { Toaster } from "react-hot-toast";
-import { UserRole } from "@prisma/client";
-import Navbar from "./_components/Navbar";
+import { UserRole as PrismaUserRole, Tier as PrismaTier } from "@prisma/client";
 import CustomerSidebar from "./_components/CustomerSidebar";
+import MainContentHeader from "./_components/MainContentHeader";
 import { getCustomerOrderCount } from "./_components/(sidebar)/_profile-actions/count-orders";
 import { getCustomerWishlistCount } from "./_components/(sidebar)/_profile-actions/count-wishlist";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -15,39 +17,64 @@ export default async function CustomerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await validateRequest();
+  const { user: fullUser, session } = await validateRequest();
 
-  if (!session.user || session.user.role !== UserRole.CUSTOMER) {
-    redirect("/");
+  if (
+    !fullUser ||
+    !session ||
+    (fullUser.role !== PrismaUserRole.CUSTOMER &&
+      fullUser.role !== PrismaUserRole.PROCUSTOMER)
+  ) {
+    return redirect("/");
   }
 
-  // Get the order count and wishlist count in parallel
+  // Prepare SessionUser - ENSURE ALL FIELDS ARE MAPPED
+  const sessionUser: SessionUser = {
+    id: fullUser.id,
+    username: fullUser.username,
+    firstName: fullUser.firstName,
+    lastName: fullUser.lastName,
+    displayName: fullUser.displayName,
+    email: fullUser.email,
+    postcode: fullUser.postcode, // Already present
+    country: fullUser.country, // Already present
+    avatarUrl: fullUser.avatarUrl ?? null,
+    backgroundUrl: fullUser.backgroundUrl ?? null,
+    role: fullUser.role as SessionUser["role"],
+    tier: fullUser.tier,
+    phoneNumber: fullUser.phoneNumber ?? null, // Already present
+
+    // --- ADDED/VERIFIED MAPPINGS ---
+    streetAddress: fullUser.streetAddress ?? null, // Ensure this exists on fullUser
+    suburb: fullUser.suburb ?? null, // Ensure this exists on fullUser
+    townCity: fullUser.townCity ?? null, // Ensure this exists on fullUser
+    // --- END ADDED/VERIFIED ---
+  };
+
+  // Fetch counts (rest of the component remains the same)
   const [orderCountResponse, wishlistCountResponse] = await Promise.all([
     getCustomerOrderCount(),
     getCustomerWishlistCount(),
   ]);
-
-  // Extract the counts or use 0 as fallback
   const orderCount = orderCountResponse.success
     ? orderCountResponse.totalOrders || 0
     : 0;
-
   const wishlistCount = wishlistCountResponse.success
     ? wishlistCountResponse.wishlistItemCount || 0
     : 0;
 
   return (
-    <SessionProvider value={session}>
-      <Toaster />
-      <div className="flex flex-col min-h-screen">
-        <Navbar />
-        <div className="flex">
-          <CustomerSidebar
-            user={session.user}
-            orderCount={orderCount}
-            wishlistCount={wishlistCount}
-          />
-          <main className="flex-grow p-6 ml-64 transition-all duration-300 bg-slate-100 min-h-screen pt-16">
+    <SessionProvider value={{ user: sessionUser, session: session }}>
+      <Toaster position="top-right" />
+      <div className="flex h-screen bg-background text-foreground overflow-hidden">
+        <CustomerSidebar
+          user={sessionUser}
+          orderCount={orderCount}
+          wishlistCount={wishlistCount}
+        />
+        <div className="flex flex-1 flex-col">
+          <MainContentHeader />
+          <main className="flex-1 overflow-y-auto p-6 lg:p-8 bg-muted/40">
             {children}
           </main>
         </div>

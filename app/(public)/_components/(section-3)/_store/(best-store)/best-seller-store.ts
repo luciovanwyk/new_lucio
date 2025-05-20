@@ -7,6 +7,10 @@ import {
   getBestSellerById as getByIdAction,
 } from "../../_actions/(best-seller-actions.ts)/upload-get-actions"; // Verify path
 import {
+  updateBestSeller as updateAction,
+  deleteBestSeller as deleteAction,
+} from "../../_actions/(best-seller-actions.ts)/update-delete-actions"; // Verify path
+import {
   createSecureStorage,
   isLocalStorageAvailable,
   sanitizeProductData,

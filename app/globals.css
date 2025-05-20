@@ -2,28 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-/* Add this to enforce light mode as default */
-:root {
-  color-scheme: light;
-}
-
-html {
-  color-scheme: light;
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-}
-
 @layer base {
   :root {
-    color-scheme: light;
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -54,7 +34,6 @@ html {
 
   [data-theme="dark"],
   .dark {
-    color-scheme: dark;
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
     --card: 222.2 84% 4.9%;
@@ -80,74 +59,75 @@ html {
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
-}
 
-@layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
-}
-
-.btn {
-  @apply inline-block items-center h-16 pt-6 w-[200px] px-6 py-2 rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition duration-300 ease-in-out;
-}
-
-/* Custom scrollbar styles */
-.select-scroll {
-  @apply overflow-y-auto;
-  scrollbar-width: thin;
-  scrollbar-color: hsl(215.4 16.3% 46.9%) transparent;
-}
-
-.select-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.select-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.select-scroll::-webkit-scrollbar-thumb {
-  @apply bg-muted-foreground/50 rounded;
-}
-
-/* Existing scrollbar utilities */
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
 }
 
 @layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .dynamic-bg {
+    background-size: cover;
+    background-position: center;
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  .w-\[39\.7\%\] {
+
+  .w-[39.7%] {
     width: 39.7%;
   }
-  .w-\[28\.3\%\] {
+
+  .w-[28.3%] {
     width: 28.3%;
   }
-  .w-\[17\.4\%\] {
+
+  .w-[17.4%] {
     width: 17.4%;
   }
-  .w-\[14\.6\%\] {
+
+  .w-[14.6%] {
     width: 14.6%;
   }
 }
 
-/* Semi-circle progress component styles */
 @layer components {
+  .btn {
+    @apply inline-block items-center h-16 pt-6 w-[200px] px-6 py-2 rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition duration-300 ease-in-out;
+  }
+
+  .select-scroll {
+    @apply overflow-y-auto;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(215.4 16.3% 46.9%) transparent;
+  }
+
+  .select-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .select-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .select-scroll::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/50 rounded;
+  }
+
   .progress-semicircle {
     clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
     transform: rotate(var(--progress-rotation, -90deg));
@@ -166,25 +146,20 @@ html {
   }
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
+@keyframes shine {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
   }
-  body {
-    @apply bg-background text-foreground;
+  50% {
+    opacity: 0.5;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
   }
 }
 
-/* styles/globals.css */
-#options-block {
-  z-index: 1;
-  position: fixed;
-  background-color: #fff;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-}
-
-.hidden {
-  display: none;
+.animate-shine {
+  animation: shine 1.5s ease-in-out;
 }

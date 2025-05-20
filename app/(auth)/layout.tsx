@@ -10,7 +10,7 @@ enum UserRole {
   EDITOR = "EDITOR",
   ADMIN = "ADMIN",
   SUPERADMIN = "SUPERADMIN",
-  ROLE_MANAGER = "ROLE_MANAGER",  // <-- Correct enum key and value
+  MANAGER = "MANAGER",
 }
 
 // Define role-based routing
@@ -21,10 +21,9 @@ const roleRoutes: Record<UserRole, string> = {
   [UserRole.EDITOR]: "/",
   [UserRole.ADMIN]: "/admin",
   [UserRole.SUPERADMIN]: "/super-admin",
-  [UserRole.ROLE_MANAGER]: "/role-manager",  // <-- Add route for ROLE_MANAGER
+  [UserRole.MANAGER]: "/manager",
 };
 
-// Convert string to UserRole enum safely
 function toUserRole(role: string): UserRole | undefined {
   return Object.values(UserRole).includes(role as UserRole)
     ? (role as UserRole)

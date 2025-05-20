@@ -1,41 +1,45 @@
 "use client";
 
+import React, { forwardRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SessionUser } from "@/app/SessionProvider";
+;
+
+interface Route {
+  name: string;
+  path: string;
+}
 
 interface MobileMenuProps {
   isOpen: boolean;
   onClose: () => void;
-  menuRef: React.RefObject<HTMLDivElement>;
-  routes: { name: string; path: string }[];
-  dashboardUrl?: string;
+  routes: Route[];
+  showDashboard: boolean;
+  dashboardPath: string | undefined;
+  onDashboardClick: (e: React.MouseEvent) => void;
+  user: SessionUser | null;
 }
 
-const MobileMenu = ({
-  isOpen,
-  onClose,
-  menuRef,
-  routes,
-  dashboardUrl = "/customer",
-}: MobileMenuProps) => {
+const MobileMenu = forwardRef<HTMLDivElement, MobileMenuProps>((
+  {
+    isOpen,
+    onClose,
+    routes,
+    showDashboard,
+    dashboardPath,
+    onDashboardClick,
+    user
+  },
+  ref
+) => {
   const pathname = usePathname();
 
   if (!isOpen) return null;
 
-  const handleDashboardClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    onClose();
-
-    if (pathname === dashboardUrl) {
-      window.location.reload();
-    } else {
-      window.location.href = dashboardUrl;
-    }
-  };
-
   return (
     <div
-      ref={menuRef}
+      ref={ref}
       className="fixed top-0 right-0 h-full w-full sm:w-96 bg-gradient-to-b from-gray-900 to-black border-l border-red-700 shadow-lg z-50 transition-transform duration-300 ease-in-out"
     >
       <div className="p-6">
@@ -61,11 +65,11 @@ const MobileMenu = ({
         </div>
         <div className="flex flex-col gap-4 mt-8">
           {routes.map((route) =>
-            route.name === "My Dashboard" ? (
+            route.name === "My Dashboard" && showDashboard && dashboardPath ? (
               <a
                 key={route.path}
-                href={dashboardUrl}
-                onClick={handleDashboardClick}
+                href={dashboardPath}
+                onClick={onDashboardClick}
                 className="px-4 py-3 rounded-md text-gray-300 transition-all duration-300
                   hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-red-700"
               >
@@ -81,12 +85,14 @@ const MobileMenu = ({
               >
                 {route.name}
               </Link>
-            ),
+            )
           )}
         </div>
       </div>
     </div>
   );
-};
+});
+
+MobileMenu.displayName = "MobileMenu";
 
 export default MobileMenu;

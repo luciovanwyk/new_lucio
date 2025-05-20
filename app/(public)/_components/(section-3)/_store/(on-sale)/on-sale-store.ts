@@ -6,6 +6,13 @@ import {
   isLocalStorageAvailable,
   sanitizeProductData,
 } from "../secureStorage"; // Corrected path
+import {
+  createOnSale as createAction, // Use alias
+  getOnSaleItemById as getByIdAction, // Use alias
+  getOnSaleItems as getAction, // Use alias
+  updateOnSaleItem as updateAction, // Use alias
+  deleteOnSaleItem as deleteAction, // Use alias
+} from "../../_actions/(on-sale-actions)/on-sale-actions"; // Corrected path
 
 // --- EXPORT the interface ---
 export interface OnSaleItem {

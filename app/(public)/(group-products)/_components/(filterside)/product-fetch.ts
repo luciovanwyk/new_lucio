@@ -1,168 +1,84 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { ProductActionResult } from "./types";
+import {
+  ProductActionResult,
+  ProductWithVariations,
+  Variation as VariationType, // Assuming Variation interface is defined in types.ts
+} from "./types"; // Adjust path if needed
 import { validateRequest } from "@/auth";
+import { Prisma } from "@prisma/client";
 
 /**
- * Fetches all products from the database with their variations,
- * regardless of category, but maintains category information
+ * Fetches all products from the database with their variations.
+ * (Ensure select includes all fields needed by ProductWithVariations)
  */
 export async function getAllProducts(): Promise<ProductActionResult> {
   try {
     const products = await prisma.product.findMany({
-      where: {
-        isPublished: true,
+      where: { isPublished: true },
+      include: {
+        // Using include fetches all fields by default
+        Variation: true, // Include all variation fields
       },
-      select: {
-        id: true,
-        productName: true,
-        category: true,
-        productImgUrl: true,
-        description: true,
-        sellingPrice: true,
-        isPublished: true,
-        createdAt: true,
-        updatedAt: true,
-        userId: true,
-        Variation: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
-            size: true,
-            sku: true,
-            quantity: true,
-            price: true,
-            imageUrl: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
+      orderBy: { createdAt: "asc" },
     });
 
-    // Log category distribution for debugging
-    const categoryDistribution = products.reduce<Record<string, number>>(
-      (acc, product) => {
-        if (product.category) {
-          product.category.forEach((cat) => {
-            acc[cat] = (acc[cat] || 0) + 1;
-          });
-        }
-        return acc;
-      },
-      {},
-    );
-
-    // Transform the data to match frontend expectations
+    // Map Prisma's Variation[] to variations[] if needed by your type
     const transformedProducts = products.map((product) => {
-      // Create a copy without Variation to avoid property name conflicts
       const { Variation, ...productData } = product;
-
-      // Return a new object with variations property
-      return {
-        ...productData,
-        variations: Variation,
-      };
+      return { ...productData, variations: Variation }; // Matches ProductWithVariations
     });
 
     return {
       success: true,
-      products: transformedProducts,
-    };
+      products: transformedProducts as ProductWithVariations[],
+    }; // Assert type
   } catch (error) {
     console.error("Server Error fetching all products:", error);
-    return {
-      success: false,
-      error: "Failed to fetch all products",
-    };
+    return { success: false, error: "Failed to fetch all products" };
   }
 }
 
 /**
- * Fetches a single product by ID with its variations
- * Also checks if the variations are in the user's wishlist
+ * Fetches a single product by ID with its variations and wishlist status.
+ * (Ensure select includes all fields needed by ProductWithVariations)
  */
 export async function getProductById(
   productId: string,
 ): Promise<ProductActionResult & { wishlistStatus?: Record<string, boolean> }> {
   try {
     const product = await prisma.product.findUnique({
-      where: {
-        id: productId,
-        isPublished: true,
-      },
-      select: {
-        id: true,
-        productName: true,
-        category: true,
-        productImgUrl: true,
-        description: true,
-        sellingPrice: true,
-        isPublished: true,
-        createdAt: true,
-        updatedAt: true,
-        userId: true,
-        Variation: {
-          select: {
-            id: true,
-            name: true,
-            color: true,
-            size: true,
-            sku: true,
-            quantity: true,
-            price: true,
-            imageUrl: true,
-          },
-        },
+      where: { id: productId, isPublished: true },
+      include: {
+        // Using include fetches all fields by default
+        Variation: true, // Include all variation fields
       },
     });
 
     if (!product) {
-      return {
-        success: false,
-        error: "Product not found",
-      };
+      return { success: false, error: "Product not found" };
     }
 
-    // Transform the product data
     const { Variation, ...productData } = product;
-    const transformedProduct = {
-      ...productData,
-      variations: Variation,
-    };
+    const transformedProduct = { ...productData, variations: Variation };
 
-    // Check if the user is logged in using Lucia auth
+    // Check wishlist status
     const { user } = await validateRequest();
     let wishlistStatus: Record<string, boolean> = {};
-
     if (user) {
-      const userId = user.id;
-
-      // Find the user's wishlist
       const wishlist = await prisma.wishlist.findUnique({
-        where: { userId },
-        include: {
-          items: {
-            select: {
-              variationId: true,
-            },
-          },
-        },
+        where: { userId: user.id },
+        include: { items: { select: { variationId: true } } },
       });
-
       if (wishlist) {
-        // Create a map of variation IDs to wishlist status
         const wishlistVariationIds = new Set(
           wishlist.items.map((item) => item.variationId),
         );
-
-        // Set wishlist status for each variation
+        // Use Variation from the fetched product which has all fields
         wishlistStatus = Variation.reduce(
-          (acc, variation) => {
-            acc[variation.id] = wishlistVariationIds.has(variation.id);
+          (acc: Record<string, boolean>, v: VariationType) => {
+            acc[v.id] = wishlistVariationIds.has(v.id);
             return acc;
           },
           {} as Record<string, boolean>,
@@ -172,14 +88,143 @@ export async function getProductById(
 
     return {
       success: true,
-      product: transformedProduct,
+      // Ensure transformedProduct matches ProductWithVariations structure
+      product: transformedProduct as ProductWithVariations, // Assert type
       wishlistStatus,
     };
   } catch (error) {
     console.error(`Server Error fetching product with ID ${productId}:`, error);
+    return { success: false, error: "Failed to fetch product" };
+  }
+}
+
+/**
+ * Fetches related products based on category.
+ * (Ensure select includes all fields needed by ProductWithVariations)
+ */
+export async function getRelatedProducts(
+  productId: string,
+  limit: number = 4,
+): Promise<ProductActionResult> {
+  console.log(`Fetching related products for ${productId}`);
+  try {
+    const currentProduct = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { category: true },
+    });
+
+    if (!currentProduct || currentProduct.category.length === 0) {
+      return { success: true, products: [] };
+    }
+
+    const related = await prisma.product.findMany({
+      where: {
+        id: { not: productId },
+        isPublished: true,
+        category: { hasSome: currentProduct.category },
+      },
+      take: limit,
+      include: {
+        // Use include to get all fields
+        Variation: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const transformedProducts = related.map((product) => {
+      const { Variation, ...productData } = product;
+      return { ...productData, variations: Variation };
+    });
+
+    return {
+      success: true,
+      products: transformedProducts as ProductWithVariations[],
+    }; // Assert type
+  } catch (error) {
+    console.error(
+      `Server Error fetching related products for ${productId}:`,
+      error,
+    );
     return {
       success: false,
-      error: "Failed to fetch product",
+      error: "Failed to fetch related products",
+      products: [],
+    };
+  }
+}
+
+/**
+ * Fetches featured products.
+ * Excludes the currently viewed product if its ID is provided.
+ */
+export async function getFeaturedProducts(options?: {
+  limit?: number;
+  excludeProductId?: string;
+}): Promise<ProductActionResult> {
+  const limit = options?.limit ?? 5;
+  const excludeProductId = options?.excludeProductId;
+
+  try {
+    const whereClause: Prisma.ProductWhereInput = {
+      isFeatured: true,
+      isPublished: true,
+      ...(excludeProductId && { id: { not: excludeProductId } }),
+    };
+    console.log(
+      "[getFeaturedProducts] Fetching with where clause:",
+      JSON.stringify(whereClause),
+    );
+
+    const products = await prisma.product.findMany({
+      where: whereClause,
+      take: limit,
+      // --- Use include to fetch all Product and nested Variation fields ---
+      include: {
+        Variation: true, // Fetch all variation fields
+      },
+      // --- END Use include ---
+      orderBy: { updatedAt: "desc" },
+    });
+
+    console.log(
+      `[getFeaturedProducts] Raw products fetched (${products.length}):`,
+      JSON.stringify(
+        products.map((p) => ({
+          id: p.id,
+          name: p.productName,
+          featured: p.isFeatured,
+        })),
+        null,
+        2,
+      ),
+    );
+
+    // --- Map Prisma's default 'Variation' to 'variations' if your type requires it ---
+    const transformedProducts = products.map((product) => {
+      const { Variation, ...productData } = product; // Destructure Prisma's default relation name
+      return {
+        ...productData,
+        variations: Variation, // Assign the array to the 'variations' key
+      }; // Now this structure should match ProductWithVariations
+    });
+    // --- END Mapping ---
+
+    console.log(
+      `[getFeaturedProducts] Transformed products (${transformedProducts.length}) being returned.`,
+    );
+
+    // --- Return the correctly structured data, asserting the type ---
+    return {
+      success: true,
+      products: transformedProducts as ProductWithVariations[],
+    };
+    // --- END Return ---
+  } catch (error) {
+    console.error("[getFeaturedProducts] Server Error:", error);
+    return {
+      success: false,
+      error: "Failed to fetch featured products",
+      products: [],
     };
   }
 }

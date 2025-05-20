@@ -1,12 +1,12 @@
 "use server";
 
+import { lucia } from "@/auth";
 import prisma from "@/lib/prisma";
 import { verify } from "@node-rs/argon2";
 import { isRedirectError } from "next/dist/client/components/redirect";
 import { cookies } from "next/headers";
 import { LoginFormValues } from "./validation";
 import { UserRole } from "@prisma/client";
-import { lucia } from "@/lib/auth.config";
 
 const roleRoutes: Record<UserRole, string> = {
   [UserRole.USER]: "/register-success",
@@ -15,12 +15,10 @@ const roleRoutes: Record<UserRole, string> = {
   [UserRole.EDITOR]: "/",
   [UserRole.ADMIN]: "/admin",
   [UserRole.SUPERADMIN]: "/super-admin",
-  [UserRole.ROLE_MANAGER]: "/role-manager",
+  [UserRole.MANAGER]: "/manager",
 } as const;
 
-export async function login(
-  credentials: LoginFormValues,
-): Promise<{
+export async function login(credentials: LoginFormValues): Promise<{
   error?: string;
   redirectTo?: string;
   sessionCreated?: boolean;
@@ -76,17 +74,15 @@ export async function login(
           },
         });
 
-        // Create and set session cookie with explicit secure attributes
         const sessionCookie = lucia.createSessionCookie(dbSession.id);
-        cookies().set(sessionCookie.name, sessionCookie.value, {
-          ...sessionCookie.attributes,
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          path: "/",
-        });
+        cookies().set(
+          sessionCookie.name,
+          sessionCookie.value,
+          sessionCookie.attributes,
+        );
 
-        // Removed artificial delay
+        // Add a small delay to ensure session is properly set
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
         sessionCreated = true;
       } catch (sessionError) {

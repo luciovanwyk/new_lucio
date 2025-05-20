@@ -5,7 +5,7 @@ enum UserRole {
     EDITOR
     ADMIN
     SUPERADMIN
-     ROLE_MANAGER   // <-- Add this line
+    MANAGER
 }
 
 enum SubscriptionStatus {
@@ -42,8 +42,10 @@ enum Tier {
     PLATINUM
 }
 
-enum SupportStatus {
+
+enum TicketStatus {
   OPEN
-  RESOLVED
+  IN_PROGRESS
   CLOSED
+  RESOLVED
 }

@@ -3,9 +3,14 @@ const nextConfig = {
   experimental: {
     serverActions: {
       enabled: true,
+      bodySizeLimit: "10mb" // Add size limit for server actions
     },
-    // If you need to use external packages in edge runtime
-    serverComponentsExternalPackages: ["@node-rs/argon2"],
+  },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals.push("@node-rs/argon2");
+    }
+    return config;
   },
   images: {
     remotePatterns: [

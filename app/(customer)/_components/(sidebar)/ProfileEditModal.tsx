@@ -1,6 +1,9 @@
-"use client";
+"use client"; // <<< MUST BE THE VERY FIRST LINE
 
-import { useEffect, ReactNode } from "react";
+// You can put comments *after* the directive
+// This modal provides the backdrop and close functionality
+
+import { useState, useEffect, ReactNode } from "react";
 import { X } from "lucide-react";
 
 interface ProfileEditModalProps {
@@ -9,17 +12,24 @@ interface ProfileEditModalProps {
   children: ReactNode;
 }
 
-export default function ProfileEditModal({ isOpen, onClose, children }: ProfileEditModalProps) {
+export default function ProfileEditModal({
+  isOpen,
+  onClose,
+  children,
+}: ProfileEditModalProps) {
+  // Close modal when Escape key is pressed
   useEffect(() => {
     const handleEscapeKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
         onClose();
       }
     };
+
     document.addEventListener("keydown", handleEscapeKey);
     return () => document.removeEventListener("keydown", handleEscapeKey);
   }, [isOpen, onClose]);
 
+  // Prevent scrolling on the body when modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -35,11 +45,23 @@ export default function ProfileEditModal({ isOpen, onClose, children }: ProfileE
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-white bg-opacity-80 backdrop-blur-sm" onClick={onClose} />
+      {/* Overlay with light white shade */}
+      <div
+        className="absolute inset-0 bg-white bg-opacity-80 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal container */}
       <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4 z-10">
-        <button onClick={onClose} className="absolute right-4 top-4 text-gray-500 hover:text-gray-700">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 text-gray-500 hover:text-gray-700"
+        >
           <X size={20} />
         </button>
+
+        {/* Modal content */}
         <div className="p-6">{children}</div>
       </div>
     </div>

@@ -1,47 +1,23 @@
-"use client";
+// src/app/(customer)/customer/support/page.tsx (or similar path)
 
-import React from 'react';
-import SubmitForm from './_components/SupportForm';
+import React from "react";
+import { redirect } from "next/navigation";
+import SupportForm from "./_components/SupportForm";
+import { validateRequest } from "@/auth";
 
-const SupportPage = () => {
-  const pageStyle = {
-    maxWidth: '800px',
-    margin: '30px auto',
-    padding: '40px',
-    border: '1px solid #ddd',
-    borderRadius: '12px',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-    backgroundColor: '#fff',
-    textAlign: 'center' as 'center',
-  };
+export default async function SupportPage() {
+  // Validate user session
+  const { user } = await validateRequest();
 
-  const headingStyle = {
-    fontSize: '2.8em',
-    fontWeight: '700',
-    color: '#333',
-    marginBottom: '20px',
-    textShadow: '1px 1px 2px rgba(0, 0, 0, 0.1)',
-  };
-
-  const paragraphStyle = {
-    fontSize: '1.2em',
-    color: '#555',
-    marginBottom: '30px',
-    lineHeight: '1.6',
-    fontStyle: 'italic',
-  };
+  if (!user) {
+    redirect("/login?message=Please log in to access support");
+  }
 
   return (
-    <div style={pageStyle}>
-      <h1 style={headingStyle}>
-        We&apos;re Here to Help!
-      </h1>
-      <p style={paragraphStyle}>
-        Having trouble? No worries! Reach out and let us know what&apos;s going on. We&apos;re here to make your experience awesome!
-      </p>
-      <SubmitForm />
+    // Adjust container styling if needed for scrollbar issue
+    <div className="container mx-auto px-4 py-8">
+      {/* Render the form - it now contains its own action logic */}
+      <SupportForm />
     </div>
   );
-};
-
-export default SupportPage;
+}

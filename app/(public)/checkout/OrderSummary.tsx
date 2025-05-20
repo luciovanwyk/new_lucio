@@ -1,3 +1,5 @@
+// app/(public)/checkout/OrderSummary.tsx
+
 "use client";
 
 import React from "react";
@@ -5,16 +7,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useTierDiscount } from "../(group-products)/_components/(filterside)/tier-util";
-import { Badge } from "@/components/ui/badge"; // Optional: Use Badge component
 
-// Types (ensure CartItem type matches your actual data structure)
+// Types
 interface CartItem {
   id: string;
   quantity: number;
   variation: {
     id: string;
     name: string;
-    price: number; // This should be the price *before* VAT
+    price: number;
     imageUrl: string;
     product: {
       id: string;
@@ -25,36 +26,26 @@ interface CartItem {
 
 interface OrderSummaryProps {
   items: CartItem[];
-  totalPrice: number; // This should be the original total *before* discounts and *before* VAT
+  totalPrice: number;
 }
 
-// --- Define South African VAT Rate ---
-const VAT_RATE = 0.15; // 15%
-
 export default function OrderSummary({ items, totalPrice }: OrderSummaryProps) {
+  // Get tier discount information
   const { hasDiscount, discountPercentage, userTier, calculatePrice } =
     useTierDiscount();
 
-  // Calculate discounted total (this is the price *before* VAT)
-  const discountedTotalPriceBeforeVAT = hasDiscount
-    ? totalPrice * (1 - discountPercentage)
-    : totalPrice;
+  // Calculate discounted total
+  const discountedTotalPrice = totalPrice * (1 - discountPercentage);
 
-  // --- Calculate VAT Amount ---
-  const vatAmount = discountedTotalPriceBeforeVAT * VAT_RATE;
-
-  // --- Calculate Final Total Including VAT ---
-  const finalTotalWithVAT = discountedTotalPriceBeforeVAT + vatAmount;
-
+  // Format tier name for display
   const tierName = userTier.charAt(0) + userTier.slice(1).toLowerCase();
 
   return (
     <div className="lg:col-span-1">
-      <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6 border">
-        <h2 className="text-xl font-bold mb-6 border-b pb-4">Order Summary</h2>
+      <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6">
+        <h2 className="text-xl font-bold mb-6">Order Summary</h2>
 
         {items.length === 0 ? (
-          // ... (empty cart message remains the same)
           <div className="text-center py-8">
             <p className="text-gray-500 mb-4">Your cart is empty</p>
             <Link href="/products">
@@ -65,120 +56,116 @@ export default function OrderSummary({ items, totalPrice }: OrderSummaryProps) {
           <>
             {/* Membership Tier Badge */}
             {hasDiscount && (
-              <div className="mb-4">
-                <Badge variant="destructive" className="text-sm font-medium">
-                  {tierName} Tier Discount: {Math.round(discountPercentage * 100)}% OFF
-                </Badge>
+              <div className="mb-4 py-2 px-3 bg-red-50 border border-red-100 rounded-md">
+                <p className="text-red-600 text-sm font-medium">
+                  {tierName} Tier Discount:{" "}
+                  {Math.round(discountPercentage * 100)}% OFF
+                </p>
               </div>
             )}
 
-            <div className="divide-y max-h-[400px] overflow-y-auto pr-2 mb-4">
+            <div className="divide-y">
               {items.map((item) => {
-                const originalItemPrice = item.variation.price; // Price before VAT & discount
-                // Apply discount calculation directly here for display
-                const displayItemPriceAfterDiscount = calculatePrice(originalItemPrice);
-                // Optional: calculate item subtotal after discount but before VAT
-                // const itemSubtotalBeforeVAT = displayItemPriceAfterDiscount * item.quantity;
+                // Calculate discounted item price
+                const originalItemPrice = item.variation.price;
+                const discountedItemPrice = calculatePrice(originalItemPrice);
+                const itemSubtotal = discountedItemPrice * item.quantity;
 
                 return (
-                  <div key={item.id} className="py-4 flex gap-4">
-                    {/* ... (Image div remains the same) ... */}
-                    <div className="w-16 h-16 bg-gray-100 rounded relative flex-shrink-0">
+                  <div key={item.id} className="py-4 flex gap-3">
+                    <div className="w-16 h-16 bg-gray-100 rounded relative">
                       <Image
-                        src={item.variation.imageUrl || "/placeholder.png"} // Add a fallback image
+                        src={item.variation.imageUrl}
                         alt={item.variation.product.productName}
                         fill
-                        sizes="64px"
                         className="object-contain p-1"
                       />
                     </div>
 
-                    <div className="flex-1 min-w-0"> {/* Added min-w-0 for flex truncation */}
-                       <h3 className="font-medium text-sm truncate"> {/* Added truncate */}
-                         {item.variation.product.productName}
-                       </h3>
-                       <p className="text-gray-600 text-xs">
-                         {item.variation.name}
-                       </p>
+                    <div className="flex-1">
+                      <h3 className="font-medium">
+                        {item.variation.product.productName}
+                      </h3>
+                      <p className="text-gray-600 text-sm">
+                        {item.variation.name}
+                      </p>
 
                       <div className="flex items-center mt-1 justify-between">
-                        <span className="text-xs text-gray-500">
-                          Qty: {item.quantity}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <select
+                            className="border rounded h-7 text-sm"
+                            value={item.quantity}
+                            disabled
+                            aria-label={`Quantity for ${item.variation.product.productName}`}
+                            title="Quantity"
+                          >
+                            <option>{item.quantity}</option>
+                          </select>
+                          <button
+                            className="text-red-500 text-sm"
+                            type="button"
+                            disabled
+                          >
+                            Remove
+                          </button>
+                        </div>
 
-                        {/* Price display (Show price *before* VAT, potentially with discount) */}
-                        <div className="text-right">
-                          {hasDiscount && originalItemPrice !== displayItemPriceAfterDiscount ? (
-                            <>
-                              <span className="font-medium text-sm text-red-600">
-                                R{displayItemPriceAfterDiscount.toFixed(2)}
-                              </span>
-                              <span className="text-gray-500 text-xs line-through ml-1">
-                                R{originalItemPrice.toFixed(2)}
-                              </span>
-                            </>
-                          ) : (
-                            <span className="font-medium text-sm">
+                        {/* Price display with discount if applicable */}
+                        {hasDiscount ? (
+                          <div className="text-right">
+                            <span className="font-medium text-red-600">
+                              R{discountedItemPrice.toFixed(2)}
+                            </span>
+                            <span className="text-gray-500 text-xs line-through ml-1">
                               R{originalItemPrice.toFixed(2)}
                             </span>
-                          )}
-                           {/* Optional note that price excludes VAT */}
-                           {/* <span className="block text-xs text-gray-400 mt-0.5">(excl. VAT)</span> */}
-                        </div>
+                          </div>
+                        ) : (
+                          <span className="font-medium">
+                            R{originalItemPrice.toFixed(2)}
+                          </span>
+                        )}
                       </div>
-                      {/* Optional: Show item subtotal before VAT */}
-                      {/* <p className="text-xs text-gray-500 mt-1 text-right">
-                           Subtotal (excl. VAT): R{itemSubtotalBeforeVAT.toFixed(2)}
-                         </p> */}
+
+                      <p className="text-xs text-gray-500 mt-1">
+                        Subtotal: R{itemSubtotal.toFixed(2)}
+                      </p>
                     </div>
                   </div>
                 );
               })}
             </div>
 
-            {/* --- Updated Totals Section --- */}
-            <div className="border-t mt-4 pt-4 space-y-2">
-              {/* Original Subtotal (Before Discount & VAT) - Optional to show */}
-              {hasDiscount && (
-                  <div className="flex items-center justify-between text-sm text-gray-600">
-                    <span>Original Subtotal:</span>
+            <div className="border-t mt-4 pt-4">
+              {hasDiscount ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-gray-500">
+                    <span>Subtotal:</span>
                     <span className="line-through">
                       R{totalPrice.toFixed(2)}
                     </span>
                   </div>
-              )}
-
-              {/* Discount Amount (If Applicable) */}
-              {hasDiscount && (
-                <div className="flex items-center justify-between text-sm text-red-600">
-                  <span>
-                    {tierName} Discount ({Math.round(discountPercentage * 100)}%):
-                  </span>
-                  <span>
-                    -R{(totalPrice - discountedTotalPriceBeforeVAT).toFixed(2)}
-                  </span>
+                  <div className="flex items-center justify-between text-red-600">
+                    <span>
+                      {tierName} Discount (
+                      {Math.round(discountPercentage * 100)}%):
+                    </span>
+                    <span>
+                      -R{(totalPrice - discountedTotalPrice).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between font-bold text-lg">
+                    <span>Total:</span>
+                    <span>R{discountedTotalPrice.toFixed(2)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between font-bold">
+                  <span>Total:</span>
+                  <span>R{totalPrice.toFixed(2)}</span>
                 </div>
               )}
-
-              {/* Subtotal After Discount (Before VAT) */}
-              <div className="flex items-center justify-between text-sm">
-                <span>Subtotal (excl. VAT):</span>
-                <span className="font-medium">R{discountedTotalPriceBeforeVAT.toFixed(2)}</span>
-              </div>
-
-              {/* VAT Amount */}
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>VAT ({Math.round(VAT_RATE * 100)}%):</span>
-                <span>R{vatAmount.toFixed(2)}</span>
-              </div>
-
-              {/* Grand Total (Including VAT) */}
-              <div className="flex items-center justify-between font-bold text-lg mt-2 border-t pt-2">
-                <span>Grand Total:</span>
-                <span>R{finalTotalWithVAT.toFixed(2)}</span>
-              </div>
             </div>
-            {/* --- End of Updated Totals Section --- */}
           </>
         )}
       </div>

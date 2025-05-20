@@ -1,205 +1,213 @@
 // app/(customer)/settings/_actions/actions.ts
-
 "use server";
 
 import { z } from "zod";
-import { validateRequest } from "@/auth";
-import prisma from "@/lib/prisma";
+import { validateRequest } from "@/auth"; // Adjust path if needed
+import prisma from "@/lib/prisma"; // Adjust path if needed
 import { verify, hash } from "@node-rs/argon2";
-import { isRedirectError } from "next/dist/client/components/redirect";
-import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import type { UserCheckoutPreference } from "@prisma/client";
 
 import {
   ProfileUpdateFormValues,
   profileUpdateSchema,
-  CheckoutDetailsFormValues,
-  checkoutDetailsSchema,
+  CheckoutDetailsFormValues,  // Changed from CheckoutPreferenceFormValues
+  checkoutDetailsSchema,      // Changed from checkoutPreferenceSchema
   PasswordChangeFormValues,
   passwordChangeSchema,
   PasswordChangeResult,
   UpdateActionResult,
 } from "./types";
 
-// --- Update Customer Profile Information ---
+// Export ProfileUpdateActionResult if needed elsewhere
+export interface ProfileUpdateActionResult extends UpdateActionResult {
+  updatedUser?: Partial<ProfileUpdateFormValues>;
+}
+
+// === Action to GET Checkout Preferences ===
+export async function getCheckoutPreferences(): Promise<{
+  preference: UserCheckoutPreference | null;
+  error?: string;
+}> {
+  // console.log("[Action] getCheckoutPreferences: Fetching..."); // Optional: Keep if helpful
+  try {
+    const { user } = await validateRequest();
+    if (!user) return { preference: null, error: "User not authenticated." };
+    const preference = await prisma.userCheckoutPreference.findUnique({
+      where: { userId: user.id },
+    });
+    return { preference };
+  } catch (error) {
+    console.error("[Action] getCheckoutPreferences: Error:", error);
+    return { preference: null, error: "Failed to load checkout preferences." };
+  }
+}
+
+// === Action to UPDATE Checkout Preferences ===
+export async function updateCheckoutPreferences(
+  formData: CheckoutDetailsFormValues,  // Changed from CheckoutPreferenceFormValues
+): Promise<UpdateActionResult> {
+  try {
+    const { user } = await validateRequest();
+    if (!user) return { error: "User not authenticated." };
+    const validationResult = checkoutDetailsSchema.safeParse(formData);
+    if (!validationResult.success) return { error: "Invalid data submitted." };
+    const validatedData = validationResult.data;
+    const dataToSave = Object.fromEntries(
+      Object.entries(validatedData).map(([key, value]) => [
+        key,
+        value === "" ? null : value,
+      ]),
+    );
+    await prisma.userCheckoutPreference.upsert({
+      where: { userId: user.id },
+      update: dataToSave,
+      create: { userId: user.id, ...dataToSave },
+    });
+    revalidatePath("/settings");
+    revalidatePath("/checkout");
+    return { success: "Checkout preferences updated successfully." };
+  } catch (error: any) {
+    console.error("[Action] updateCheckoutPreferences: Error:", error);
+    if (error.code === "P2002") {
+      return { error: "Conflict saving preferences." };
+    }
+    return { error: "Server error updating preferences." };
+  }
+}
+
+// === Action to UPDATE Customer Profile Info ===
 export async function updateCustomerProfileInfo(
   formData: ProfileUpdateFormValues,
-): Promise<UpdateActionResult> {
+): Promise<ProfileUpdateActionResult> {
+  // console.log("[Action] updateCustomerProfileInfo called"); // Optional: Keep if helpful
   try {
     const { user } = await validateRequest();
-    if (!user) {
-      return { success: false, error: "User not authenticated." };
-    }
-
-    await prisma.user.update({
+    if (!user) return { error: "User not authenticated." };
+    const validationResult = profileUpdateSchema.safeParse(formData);
+    if (!validationResult.success) return { error: "Invalid data submitted." };
+    const validatedData = validationResult.data;
+    const updatedDbUser = await prisma.user.update({
       where: { id: user.id },
       data: {
-        /* ... */
-      },
-    });
-
-    return { success: true, message: "Profile information updated successfully." };
-  } catch (error) {
-    return { success: false, error: "Failed to update profile information." };
-  }
-}
-
-// --- Update Checkout Details ---
-export async function updateCheckoutDetails(
-  formData: CheckoutDetailsFormValues,
-): Promise<UpdateActionResult> {
-  try {
-    const { user } = await validateRequest();
-    if (!user) {
-      return { success: false, error: "User not authenticated." };
-    }
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        /* ... */
-      },
-    });
-
-    return { success: true, message: "Checkout details updated successfully." };
-  } catch (error) {
-    return { success: false, error: "Failed to update checkout details." };
-  }
-}
-
-// --- Update Customer Details ---
-export async function updateCustomerDetails(
-  formData: ProfileUpdateFormValues,
-): Promise<UpdateActionResult> {
-  try {
-    const { user } = await validateRequest();
-    if (!user) {
-      return { success: false, error: "User not authenticated." };
-    }
-
-    const validatedData = profileUpdateSchema.parse(formData);
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        firstName: validatedData.firstName,
+        /* Map fields */ firstName: validatedData.firstName,
         lastName: validatedData.lastName,
         displayName: validatedData.displayName,
         username: validatedData.username,
         email: validatedData.email,
-        phoneNumber: validatedData.phoneNumber,
-        streetAddress: validatedData.streetAddress,
-        suburb: validatedData.suburb,
-        townCity: validatedData.townCity,
-        postcode: validatedData.postcode,
+        phoneNumber: validatedData.phoneNumber ?? "",
         country: validatedData.country,
+        postcode: validatedData.postcode,
+        streetAddress: validatedData.streetAddress ?? "",
+        suburb: validatedData.suburb ?? null,
+        townCity: validatedData.townCity ?? "",
+      },
+      select: {
+        /* Select fields */ firstName: true,
+        lastName: true,
+        displayName: true,
+        username: true,
+        email: true,
+        phoneNumber: true,
+        country: true,
+        postcode: true,
+        streetAddress: true,
+        suburb: true,
+        townCity: true,
       },
     });
-
-    return { success: true, message: "Profile information updated successfully." };
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      const fieldErrors = error.flatten().fieldErrors as Partial<Record<keyof ProfileUpdateFormValues, string>>;
-      return {
-        success: false,
-        error: "Invalid input. Please check the fields.",
-        fieldErrors: fieldErrors,
-      };
-    }
-    console.error("Error updating customer details:", error);
-    return { success: false, error: "Failed to update profile information." };
+    revalidatePath("/settings");
+    revalidatePath("/(customer)", "layout");
+    return {
+      success: "Profile information updated successfully.",
+      updatedUser: updatedDbUser,
+    };
+  } catch (error: any) {
+    /* ... Error Handling ... */
+    console.error("[Action] updateCustomerProfileInfo Error:", error);
+    // Handle unique constraints etc.
+    return { error: "Failed to update profile information." };
   }
 }
 
-// --- Change Password ---
+// === Action to CHANGE Password (NO SENSITIVE LOGS) ===
 export async function changePassword(
   formData: PasswordChangeFormValues,
 ): Promise<PasswordChangeResult> {
-  console.log("changePassword action initiated.");
-
+  // Sensitive logs REMOVED
+  // console.log("[Action] changePassword initiated."); // Optional: Keep non-sensitive
   try {
     const { user } = await validateRequest();
-    if (!user) {
-      console.warn("Password change attempt failed: User not authenticated.");
-      return { success: false, error: "User not authenticated." };
-    }
-    console.log(`Authenticated user for password change: ${user.id}`);
+    if (!user) return { success: false, error: "User not authenticated." };
 
-    const validatedData = passwordChangeSchema.parse(formData);
-    console.log("Password change form data validated.");
+    const validationResult = passwordChangeSchema.safeParse(formData);
+    if (!validationResult.success) {
+      console.warn("[Action] changePassword: Zod validation failed."); // Okay to log event
+      const fieldErrors = validationResult.error.flatten()
+        .fieldErrors as PasswordChangeResult["fieldErrors"];
+      const formErrors = validationResult.error.flatten().formErrors;
+      const specificError =
+        fieldErrors?.confirmNewPassword ||
+        (formErrors.length > 0 ? formErrors[0] : "Invalid input.");
+      return { success: false, error: specificError, fieldErrors: fieldErrors };
+    }
+    const validatedData = validationResult.data;
+    // Sensitive log REMOVED
+    // console.log("[Action] changePassword: Data validated."); // Optional: Keep non-sensitive
 
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
       select: { passwordHash: true },
     });
-
     if (!dbUser || !dbUser.passwordHash) {
-      console.error(`Failed to retrieve password hash for user ${user.id}.`);
+      console.error(
+        "[Action] changePassword: Could not retrieve user data or hash.",
+      );
       return { success: false, error: "Could not retrieve current user data." };
     }
 
-    console.log(`Verifying current password for user ${user.id} using @node-rs/argon2...`);
-    let validPassword = false;
-    try {
-      validPassword = await verify(dbUser.passwordHash, validatedData.currentPassword);
-    } catch (verifyError) {
-      console.error(`Error verifying password for user ${user.id}:`, verifyError);
-      return {
-        success: false,
-        error: "Failed to verify current password. Please try again.",
-      };
-    }
-
+    // Verify CURRENT password
+    const validPassword = await verify(
+      dbUser.passwordHash,
+      validatedData.currentPassword,
+    );
     if (!validPassword) {
-      console.warn(`Incorrect current password entered for user ${user.id}.`);
+      console.warn(
+        "[Action] changePassword: Current password verification FAILED.",
+      );
       return {
         success: false,
         error: "Incorrect current password.",
         fieldErrors: { currentPassword: "Incorrect current password." },
       };
     }
-    console.log("Current password verified successfully.");
+    // console.log("[Action] changePassword: Current password verified."); // Optional: Keep non-sensitive
 
-    console.log("Hashing new password using @node-rs/argon2...");
+    // Hash the NEW password
     const newPasswordHash = await hash(validatedData.newPassword, {
       memoryCost: 19456,
       timeCost: 2,
       outputLen: 32,
       parallelism: 1,
     });
-    console.log("New password hashed.");
 
-    console.log(`Updating password hash in DB for user ${user.id}...`);
+    // Update DB with the NEW hash
     await prisma.user.update({
       where: { id: user.id },
       data: { passwordHash: newPasswordHash },
     });
-    console.log(`Password updated successfully in DB for user ${user.id}.`);
+    console.log("[Action] changePassword: Password hash updated in DB."); // Okay non-sensitive log
 
+    revalidatePath("/(customer)", "layout");
     return { success: true, message: "Password updated successfully." };
-  } catch (error) {
+  } catch (error: any) {
+    console.error("[Action] changePassword: Uncaught Error:", error);
     if (error instanceof z.ZodError) {
-      console.warn("Zod validation error during password change:", error.flatten());
-      const refinementError = error.errors.find(
-        (e) => e.code === "custom" && e.path.includes("confirmNewPassword"),
-      );
-      if (refinementError) {
-        return {
-          success: false,
-          error: refinementError.message,
-          fieldErrors: { confirmNewPassword: refinementError.message },
-        };
-      }
-      const fieldErrors = error.flatten().fieldErrors as Partial<Record<keyof PasswordChangeFormValues, string>>;
       return {
         success: false,
-        error: "Invalid input. Please check the fields.",
-        fieldErrors: fieldErrors,
+        error: "Schema validation failed unexpectedly.",
       };
     }
-    console.error("Critical error changing password:", error);
-    return {
-      success: false,
-      error: "An unexpected error occurred. Please try again.",
-    };
+    return { success: false, error: "An unexpected server error occurred." };
   }
 }

@@ -1,41 +1,43 @@
+// app/(admin)/SessionProvider.tsx
 "use client";
-// admin session provider
-import React, { createContext, useContext, useEffect } from "react";
-import { Session as LuciaSession } from "lucia";
-import { logout } from "../(auth)/actions";
 
-// Define the UserRole enum to match Prisma
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { Session as LuciaSession } from "lucia";
+import { logout } from "../(auth)/actions"; // Ensure this path is correct
+
+// --- Define UserRole enum (Include ALL roles & EXPORT IT) ---
+// *** ADDED MANAGER ROLE ***
 export type UserRole =
   | "USER"
   | "CUSTOMER"
   | "PROCUSTOMER"
   | "EDITOR"
+  | "MANAGER" // <<< ADDED
   | "ADMIN"
   | "SUPERADMIN";
 
-// Define the SessionUser type with only the safe fields we want to expose
+// Define the SessionUser type specific to ADMIN context
 export interface SessionUser {
+  // Keep export
   id: string;
   username: string;
   firstName: string;
   lastName: string;
   displayName: string;
-  postcode: string;
-  country: string;
   avatarUrl: string | null;
-  backgroundUrl: string | null;
-  role: UserRole;
+  role: UserRole; // Uses the exported UserRole type (now including MANAGER)
 }
 
-// Extend Lucia's Session type with our user type
+// Extend Lucia's Session type with the ADMIN SessionUser type
 export interface SessionWithUser extends LuciaSession {
+  // Keep export
   user: SessionUser;
 }
 
-// Define the context interface
+// Define the context interface for ADMIN context
 interface SessionContext {
-  user: SessionUser;
-  session: SessionWithUser;
+  user: SessionUser | null;
+  session: SessionWithUser | null;
 }
 
 const SessionContext = createContext<SessionContext | null>(null);
@@ -46,40 +48,41 @@ export default function SessionProvider({
 }: {
   children: React.ReactNode;
   value: {
-    user: SessionUser;
-    session: LuciaSession;
+    user: SessionUser | null; // Should ideally align with the updated UserRole type
+    session: LuciaSession | null;
   };
 }) {
-  // Transform the value to match our SessionContext type
-  const sessionValue: SessionContext = {
-    user: value.user,
-    session: {
-      ...value.session,
-      user: value.user,
-    },
-  };
+  const [userData, setUserData] = useState<SessionUser | null>(value.user);
 
-  // Set up auto logout timer (2 hours)
+  useEffect(() => {
+    setUserData(value.user);
+  }, [value.user]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       logout();
-    }, 7200000); // 2 hours (2 * 60 * 60 * 1000 milliseconds)
-
-    // Cleanup the timer when component unmounts
+    }, 7200000); // 2 hours
     return () => clearTimeout(timer);
   }, []);
 
+  const sessionContextValue: SessionContext = {
+    user: userData,
+    session:
+      value.session && userData ? { ...value.session, user: userData } : null,
+  };
+
   return (
-    <SessionContext.Provider value={sessionValue}>
+    <SessionContext.Provider value={sessionContextValue}>
       {children}
     </SessionContext.Provider>
   );
 }
 
 export function useSession() {
+  // Keep export
   const context = useContext(SessionContext);
   if (!context) {
-    throw new Error("useSession must be used within a SessionProvider");
+    throw new Error("useSession must be used within an Admin SessionProvider");
   }
   return context;
 }

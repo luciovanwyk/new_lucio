@@ -59,40 +59,39 @@ const ProductTabs: React.FC = () => {
   }, [activeTab, maxSlides]); // Reset also if maxSlides changes (e.g., viewport switch)
 
   return (
-    <div className="w-full py-16 bg-background">
-      <div className="max-w-7xl mx-auto px-4">
+    <div className="w-full py-16 bg-white dark:bg-gradient-to-br dark:from-burgundy-dark dark:via-burgundy-light dark:to-burgundy-dark relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-shine opacity-20 animate-shine-fast dark:opacity-30"></div>
+      <div className="absolute inset-0 bg-gradient-radial from-burgundy-shine/10 via-transparent to-transparent"></div>
+      <div className="max-w-7xl mx-auto px-4 relative">
         {/* Tabs */}
-        <div className="flex justify-center mb-8 border-b border-border overflow-x-auto">
+        <div className="flex justify-center mb-8 border-b border-border/10 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)} // setActiveSlide handled by useEffect
+              onClick={() => setActiveTab(tab.id)}
               className={`px-4 md:px-8 py-4 font-medium text-base md:text-lg transition-colors relative whitespace-nowrap
-                ${
-                  activeTab === tab.id
-                    ? "text-primary border-b-2 border-primary"
-                    : "text-muted-foreground hover:text-primary"
-                }`}
+                ${activeTab === tab.id
+                  ? "text-primary dark:text-white border-b-2 border-primary dark:border-white"
+                  : "text-muted-foreground dark:text-white/70 hover:text-primary dark:hover:text-white"}`}
             >
               {tab.name}
             </button>
           ))}
         </div>
 
-        {/* Products Container - Render ProductSlide only if there's content */}
+        {/* Products Container */}
         <div className="relative">
           {currentSlideContent.length > 0 ? (
             <ProductSlide
-              products={currentSlideContent} // Pass StoreItem[] or {isEmpty: true}[]
+              products={currentSlideContent}
               isMobile={isMobile}
               activeTab={activeTab}
               tabName={tabs[activeTab].name}
-              userRole={userRole} // Pass userRole down
+              userRole={userRole}
             />
           ) : (
-            <div className="text-center py-10 text-muted-foreground">
+            <div className="text-center py-10 text-muted-foreground dark:text-white/70">
               No items to display in this section yet.
-              {/* Optionally add button for editor to add first item */}
             </div>
           )}
 
@@ -101,19 +100,19 @@ const ProductTabs: React.FC = () => {
             <>
               <button
                 onClick={handlePrevSlide}
-                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 md:-translate-x-4 bg-background border border-border rounded-full p-2 shadow-md hover:bg-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 md:-translate-x-4 bg-white dark:bg-burgundy-dark/80 border border-border/10 rounded-full p-2 shadow-md hover:bg-secondary dark:hover:bg-burgundy-light/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Previous slide"
-                disabled={maxSlides <= 1} // Disable if only one slide
+                disabled={maxSlides <= 1}
               >
-                <ChevronLeft className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+                <ChevronLeft className="w-5 h-5 md:w-6 md:h-6 text-primary dark:text-white" />
               </button>
               <button
                 onClick={handleNextSlide}
-                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 md:translate-x-4 bg-background border border-border rounded-full p-2 shadow-md hover:bg-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 md:translate-x-4 bg-white dark:bg-burgundy-dark/80 border border-border/10 rounded-full p-2 shadow-md hover:bg-secondary dark:hover:bg-burgundy-light/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-label="Next slide"
-                disabled={maxSlides <= 1} // Disable if only one slide
+                disabled={maxSlides <= 1}
               >
-                <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+                <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-primary dark:text-white" />
               </button>
             </>
           )}
@@ -126,7 +125,9 @@ const ProductTabs: React.FC = () => {
                   key={idx}
                   onClick={() => setActiveSlide(idx)}
                   className={`w-2.5 h-2.5 rounded-full transition-colors
-                    ${activeSlide === idx ? "bg-primary" : "bg-secondary hover:bg-muted"}`}
+                    ${activeSlide === idx 
+                      ? "bg-primary dark:bg-white" 
+                      : "bg-secondary dark:bg-white/30 hover:bg-muted dark:hover:bg-white/50"}`}
                   aria-label={`Go to slide ${idx + 1}`}
                 />
               ))}

@@ -1,3 +1,5 @@
+// app/(public)/page.tsx
+
 import { validateRequest } from "@/auth";
 import { getSlides } from "./_components/(section-1)/_crud-actions/get-slides-actions";
 import HeroSlider from "./_components/(section-1)/HeroSlide";
@@ -14,16 +16,15 @@ export default async function Home() {
 
   return (
     <main className="flex min-h-screen flex-col">
-      {/* Hero Section - keeping original spacing */}
-      <div className="mt-20">
-        <HeroSlider
-          userRole={userRole}
-          initialSlides={initialSlidesResponse.data || []}
-        />
-      </div>
-
+    {/* Hero Section - centered in viewport */}
+    <div className="w-screen h-[calc(90vh-5rem)] flex items-center justify-center relative -mt-28 overflow-hidden">
+      <HeroSlider
+        userRole={userRole}
+        initialSlides={initialSlidesResponse.data || []}
+      />
+    </div>
       {/* Features Section */}
-      <div className="mt-24">
+      <div className="-mt-16">
         <FeaturesSection />
       </div>
 

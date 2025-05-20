@@ -1,7 +1,7 @@
-// lib/auth.ts
 import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { prisma } from './prisma'
+import bcrypt from 'bcryptjs'
 
 export const authOptions: NextAuthOptions = {
   pages: {
@@ -23,30 +23,44 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // Get user from database
           const user = await prisma.user.findUnique({
             where: {
               email: credentials.email
+            },
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              passwordHash: true,
+              role: true,
+              tier: true,
+              firstName: true,
+              lastName: true,
+              displayName: true,
+              avatarUrl: true,
+              backgroundUrl: true
             }
           })
 
-          if (!user) {
+          if (!user || !user.passwordHash) {
             return null
           }
 
-          // Since we don't know your password verification method,
-          // we'll assume you have a way to verify passwords elsewhere
-          // Replace this with your actual password verification logic
-          const isPasswordValid = await verifyPassword(credentials.password, user.email)
+          const isPasswordValid = await bcrypt.compare(
+            credentials.password,
+            user.passwordHash
+          )
 
           if (!isPasswordValid) {
             return null
           }
 
           return {
-            id: user.id.toString(),
+            id: user.id,
             email: user.email,
             name: user.username,
+            role: user.role,
+            tier: user.tier
           }
         } catch (error) {
           console.error('Auth error:', error)
@@ -56,45 +70,52 @@ export const authOptions: NextAuthOptions = {
     })
   ],
   callbacks: {
-    session: ({ session, token }) => {
-      return {
-        ...session,
-        user: {
-          ...session.user,
-          id: token.id,
-        },
+    async session({ session, token }) {
+      if (token) {
+        const user = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            role: true,
+            tier: true,
+            firstName: true,
+            lastName: true,
+            displayName: true,
+            avatarUrl: true,
+            backgroundUrl: true
+          }
+        })
+
+        if (user) {
+          session.user = {
+            ...session.user,
+            ...user,
+            id: token.id as string
+          }
+        }
       }
+      return session
     },
     jwt: ({ token, user }) => {
       if (user) {
-        return {
-          ...token,
-          id: user.id,
-        }
+        token.id = user.id
+        token.role = user.role
+        token.tier = user.tier
       }
       return token
     },
   },
 }
 
-// Replace this function with your actual password verification logic
-async function verifyPassword(password: string, email: string): Promise<boolean> {
-  // This is a placeholder - implement your actual password verification logic
-  // Example:
-  // 1. Get the user's stored password hash from wherever it's stored
-  // 2. Compare the provided password with the stored hash
-  
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 12)
+}
+
+export async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
   try {
-    // If you're using a separate table for auth:
-    const userPassword = await prisma.$queryRaw`
-      SELECT password_hash FROM user_credentials WHERE user_email = ${email}
-    `
-    
-    // If using bcrypt:
-    // return await compare(password, userPassword.password_hash)
-    
-    // Temporary placeholder
-    return password === 'password123' // Replace with actual verification
+    return await bcrypt.compare(password, hashedPassword)
   } catch (error) {
     console.error('Password verification error:', error)
     return false

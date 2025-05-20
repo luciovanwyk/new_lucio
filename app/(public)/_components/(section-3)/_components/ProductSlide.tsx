@@ -18,9 +18,11 @@ import {
 import useNewArrivalsStore from "../_store/(new-store)/new-arrival-store";
 import useBestSellerStore from "../_store/(best-store)/best-seller-store";
 import useOnSaleStore from "../_store/(on-sale)/on-sale-store";
+
+// --- Import Modals ---
+import ProductUpdateModal from "./ProductUpdateModal";
+import DeleteConfirmationModal from "./DeleteConfirmationModal";
 import { toast } from "sonner"; // Or react-hot-toast
-import ProductUpdateModal from "./ProductUpdate";
-import DeleteConfirmationModal from "./DeleteConfirmation";
 
 // Extend props type (already includes userRole via BaseProductSlideProps -> types.ts)
 interface ProductSlideProps extends BaseProductSlideProps {}

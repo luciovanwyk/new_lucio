@@ -1,20 +1,24 @@
-import { z } from "zod";
-import { tierApplicationSchema } from "./validations";
-
-// Enum for available tier packages
+/**
+ * Enum representing the available tier packages
+ */
 export enum TierPackage {
   SILVER = "SILVER",
   GOLD = "GOLD",
   PLATINUM = "PLATINUM",
 }
 
-// Form data type (derived from schema)
-export type TierApplicationFormData = z.infer<typeof tierApplicationSchema>;
+/**
+ * Type definition for the tier application form data
+ */
+export type TierApplicationFormData = {
+  package: TierPackage;
+};
 
-// Response type from server actions
-export interface TierApplicationResponse {
+/**
+ * Type for the response after submitting a tier application
+ */
+export type TierApplicationResponse = {
   success: boolean;
-  message?: string;
   application?: {
     id: string;
     package: string;
@@ -22,7 +26,5 @@ export interface TierApplicationResponse {
     createdAt: Date;
     updatedAt: Date;
   };
-  error?: string;
-}
-
-// You may need additional types for your API responses
+  message: string;
+};

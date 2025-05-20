@@ -1,213 +1,327 @@
+// app/(public)/_components/(navbar_group)/Navbar.tsx
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSession } from "@/app/SessionProvider";
-import UserButton from "../UserButton";
-import Cart from "./(cart)/Cart";
-import MobileMenu from "./MobileMenu";
-import { MenuIcon, CartIcon } from "./NavIcons";
+import UserButton from "../UserButton"; // *** UNCOMMENTED ***
+import TierBadge from "./TierBadge"; // *** UNCOMMENTED ***
+import { UserRole } from "@prisma/client";
+import { usePathname, useRouter } from "next/navigation"; // Restore router/pathname
+import { useState, useEffect, useRef } from "react";
+import Cart from "./(cart)/Cart"; // Restore Cart
+import MobileMenu from "./MobileMenu"; // Restore MobileMenu
+import {
+  MenuIcon,
+  CartIcon,
+  SearchIcon,
+  UserIcon,
+  Sun,
+  Moon,
+} from "./NavIcons";
 import { getRoutes } from "./routes";
-import AuthModal from "@/app/(auth)/_components/AuthTabs";
-import { useCart } from "../../productId/cart/_store/use-cart-store-hooks";
-import { usePathname } from "next/navigation";
-import TierBadge from "./TierBadge";
+import AuthTabs from "@/app/(auth)/_components/AuthTabs"; // Use AuthTabs (original reverted state)
+import { useCart } from "../../productId/cart/_store/use-cart-store-hooks"; // Restore useCart
+import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
+// import { Dialog, DialogContent } from "@/components/ui/dialog"; // Remove Dialog imports (handled by AuthTabs)
+import { Button } from "@/components/ui/button"; // Keep Button import
 
-export default function Navbar() {
-  const pathname = usePathname();
+const Navbar = () => {
+  const pathname = usePathname(); // Restore
+  const router = useRouter(); // Restore
   const [scrolled, setScrolled] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [cartOpen, setCartOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Restore state
+  const [cartOpen, setCartOpen] = useState(false); // Restore state
   const { user } = useSession();
-  const { itemCount } = useCart();
+  const { itemCount } = useCart(); // Restore hook call
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  // Remove state for manually controlled dialog
+  // const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
+  // Restore Refs
   const mobileMenuRef = useRef<HTMLDivElement | null>(null);
   const cartMenuRef = useRef<HTMLDivElement | null>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const cartButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
-    };
-
+    setMounted(true);
+  }, []);
+  // Restore full click outside logic
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 10);
     const handleClickOutside = (event: MouseEvent) => {
       if (
         mobileMenuOpen &&
-        mobileMenuRef.current &&
-        !mobileMenuRef.current.contains(event.target as Node) &&
-        mobileMenuButtonRef.current &&
-        !mobileMenuButtonRef.current.contains(event.target as Node)
-      ) {
+        !mobileMenuRef.current?.contains(event.target as Node) &&
+        !mobileMenuButtonRef.current?.contains(event.target as Node)
+      )
         setMobileMenuOpen(false);
-      }
-
       if (
         cartOpen &&
-        cartMenuRef.current &&
-        !cartMenuRef.current.contains(event.target as Node) &&
-        cartButtonRef.current &&
-        !cartButtonRef.current.contains(event.target as Node)
-      ) {
+        !cartMenuRef.current?.contains(event.target as Node) &&
+        !cartButtonRef.current?.contains(event.target as Node)
+      )
         setCartOpen(false);
-      }
     };
-
     window.addEventListener("scroll", handleScroll);
     document.addEventListener("mousedown", handleClickOutside);
-
     return () => {
       window.removeEventListener("scroll", handleScroll);
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [mobileMenuOpen, cartOpen]);
+  }, [cartOpen, mobileMenuOpen]); // Restore dependencies
 
-  const routes = getRoutes(!!user, user?.role);
-
-  const handleDashboardClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-
-    if (pathname === "/customer") {
-      window.location.reload();
-    } else {
-      window.location.href = "/customer";
+  const routes = getRoutes(!!user);
+  // Restore dashboard logic
+  let dashboardPath: string | undefined = undefined;
+  let showDashboardLink = false;
+  if (user) {
+    showDashboardLink = true;
+    switch (user.role) {
+      case UserRole.EDITOR:
+        dashboardPath = "/editor";
+        break;
+      case UserRole.PROCUSTOMER:
+        dashboardPath = "/customer-pro";
+        break;
+      case UserRole.CUSTOMER:
+        dashboardPath = "/customer";
+        break;
+      case UserRole.MANAGER:
+        dashboardPath = "/manager";
+        break;
+      case UserRole.ADMIN:
+        dashboardPath = "/admin";
+        break;
+      case UserRole.SUPERADMIN:
+        dashboardPath = "/admin-super";
+        break;
+      case UserRole.USER:
+      default:
+        showDashboardLink = false;
+        break;
     }
+  } else {
+    showDashboardLink = false;
+  }
+
+  // Restore mobile dashboard handler
+  const handleDashboardClickMobile = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setMobileMenuOpen(false);
+    if (dashboardPath) {
+      if (pathname === dashboardPath) {
+        window.location.reload();
+      } else {
+        router.push(dashboardPath);
+      }
+    }
+  };
+
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
+  const renderThemeToggleButton = () => {
+    if (!mounted) {
+      return (
+        <div
+          className="p-1 w-[calc(1.25rem+0.5rem)] h-[calc(1.25rem+0.5rem)]"
+          aria-hidden="true"
+        />
+      );
+    }
+    return (
+      <button
+        onClick={toggleTheme}
+        className="text-muted-foreground hover:text-foreground relative transition-colors p-1 rounded-full hover:bg-accent"
+        aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+      >
+        {theme === 'dark' ? <Sun /> : <Moon />}
+      </button>
+    );
   };
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? "bg-gradient-to-b from-gray-900 to-black shadow-lg border-b border-red-700"
-          : "bg-gradient-to-b from-gray-900 to-black"
-      }`}
-    >
-      <nav className="container mx-auto px-7 flex items-center justify-between h-20">
-        <Link href="/" className="flex items-center">
-          <Image
-            src="/logo_gh.png"
-            alt="Genius Humans Logo"
-            width={250}
-            height={45}
-            className="object-contain"
-          />
-        </Link>
+    className={cn(
+      "sticky top-0 z-40 w-full transition-all duration-500 ease-in-out",
+      scrolled
+        ? "bg-white/90 dark:bg-gradient-to-r dark:from-burgundy-dark dark:via-burgundy-light dark:to-burgundy-dark backdrop-blur-sm border-b-2 border-[#1A0F0F] shadow-lg shadow-black/20 translate-y-0"
+        : "bg-white dark:bg-gradient-to-r dark:from-burgundy-dark dark:via-burgundy-light dark:to-burgundy-dark border-b-2 border-[#1A0F0F] -translate-y-1"
+    )}
+  >
+      <nav className="container mx-auto px-6 sm:px-8 lg:px-12 flex items-center justify-between h-24">
+        {/* Left Logo */}
+        <div className="flex-shrink-0 transition-all duration-300 hover:scale-105 hover:-rotate-2">
+          <Link href="/" aria-label="Go to homepage" className="relative group">
+            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-primary/0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <Image
+              src="/logo_gh.png"
+              alt="Genius Humans Logo"
+              width={180}
+              height={35}
+              className="object-contain relative z-10"
+              priority
+            />
+          </Link>
+        </div>
 
-        <div className="hidden md:flex items-center gap-4">
-          {routes.map((route) =>
-            route.name === "My Dashboard" ? (
-              <a
-                key={route.path}
-                href={route.path}
-                onClick={handleDashboardClick}
-                className="px-4 py-2 rounded-md text-gray-300 transition-all duration-300 
-                  hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-red-700 
-                  hover:scale-105 font-medium"
-              >
-                {route.name}
-              </a>
-            ) : (
+        {/* Center Links */}
+        <div className="hidden md:flex flex-grow items-center justify-center gap-3 lg:gap-6">
+          {routes.map((route) => {
+            if (route.name === "My Dashboard") return null;
+            return (
               <Link
                 key={route.path}
                 href={route.path}
-                className="px-4 py-2 rounded-md text-gray-300 transition-all duration-300 
-                  hover:text-white hover:bg-gradient-to-r hover:from-red-500 hover:to-red-700 
-                  hover:scale-105 font-medium"
+                className={cn(
+                  "text-sm font-medium transition-all duration-300 px-4 py-2 rounded-lg relative overflow-hidden group",
+                  pathname === route.path
+                    ? "text-primary-foreground bg-primary shadow-md transform hover:scale-105 hover:shadow-lg"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
               >
-                {route.name}
+                <span className="relative z-10">{route.name}</span>
+                <div className="absolute inset-0 bg-accent/80 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
               </Link>
-            ),
-          )}
+            );
+          })}
+        </div>
 
-          {user && (
-            <div className="relative">
+        {/* Right Side: Actions (Desktop) */}
+        <div className="hidden md:flex items-center gap-4 lg:gap-5">
+          {showDashboardLink && dashboardPath && (
+            <Link
+              href={dashboardPath}
+              className="relative group px-4 py-2 rounded-lg transition-all duration-300 hover:scale-105"
+            >
+              <span className="relative z-10 text-sm font-medium text-muted-foreground group-hover:text-foreground">My Dashboard</span>
+              <div className="absolute inset-0 bg-accent/80 transform scale-y-0 group-hover:scale-y-100 transition-transform duration-300 origin-bottom rounded-lg" />
+            </Link>
+          )}
+          {/* Theme Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            className="text-muted-foreground hover:text-foreground relative transition-all duration-300 p-2 rounded-full hover:bg-accent hover:scale-110 hover:rotate-12"
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            {theme === "dark" ? <Sun /> : <Moon />}
+          </button>
+
+          {/* Rest of the components remain the same */}
+          {/* Cart Icon */}
+          {user && (user.role === UserRole.CUSTOMER || user.role === UserRole.PROCUSTOMER) && (
+            <div className="relative transition-transform hover:scale-105">
               <button
                 ref={cartButtonRef}
-                onClick={() => setCartOpen(!cartOpen)}
-                className="ml-2 p-2 rounded-md text-gray-300 hover:text-white hover:bg-red-600/20"
-                aria-label={`Open cart containing ${itemCount} items`}
+                onClick={() => setCartOpen(true)}
+                className="text-muted-foreground hover:text-foreground relative transition-colors p-1"
+                aria-label={`Open cart with ${itemCount} items`}
               >
                 <CartIcon />
                 {itemCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-medium text-white animate-pulse">
                     {itemCount > 99 ? "99+" : itemCount}
                   </span>
                 )}
-                <span className="sr-only">Open cart</span>
               </button>
             </div>
           )}
 
-          <div className="ml-2 text-gray-300 flex items-center gap-2">
+          {/* Auth / User Section */}
+          <div className="flex items-center gap-2 transition-transform hover:scale-105">
             {!user ? (
-              <AuthModal />
+              <AuthTabs />
             ) : (
-              <>
+              <div className="relative flex-shrink-0">
                 <UserButton />
-                <TierBadge />
-              </>
+                <div className="absolute -bottom-1 -right-1 z-10">
+                  <TierBadge />
+                </div>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="md:hidden flex items-center gap-2">
-          {user && (
-            <div className="relative">
-              <button
-                ref={cartButtonRef}
-                onClick={() => setCartOpen(!cartOpen)}
-                className="p-2 rounded-md text-gray-300 hover:text-white hover:bg-red-600/20"
-                aria-label={`Open cart containing ${itemCount} items`}
-              >
-                <CartIcon />
-                {itemCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-                    {itemCount > 99 ? "99+" : itemCount}
-                  </span>
-                )}
-                <span className="sr-only">Open cart</span>
-              </button>
-            </div>
-          )}
-
-          <div className="text-gray-300 flex items-center gap-2">
-            {!user ? (
-              <AuthModal />
-            ) : (
-              <>
-                <UserButton />
-                <TierBadge />
-              </>
+        {/* Right Side: Actions (Mobile) */}
+        <div className="md:hidden flex items-center gap-1">
+          {renderThemeToggleButton()}
+          {/* Cart Icon */}
+          {user &&
+            (user.role === UserRole.CUSTOMER ||
+              user.role === UserRole.PROCUSTOMER) && (
+              <div className="relative">
+                <button
+                  ref={cartButtonRef}
+                  onClick={() => setCartOpen(true)}
+                  className="text-muted-foreground hover:text-foreground relative transition-colors p-1"
+                  aria-label={`Open cart with ${itemCount} items`}
+                >
+                  <CartIcon />
+                  {itemCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-medium text-white">
+                      {" "}
+                      {itemCount > 99 ? "99+" : itemCount}{" "}
+                    </span>
+                  )}
+                </button>
+              </div>
             )}
-          </div>
-
+          {/* Auth / User */}
+          {!user ? (
+            <AuthTabs /> // Use original AuthTabs
+          ) : (
+            // *** Corrected Structure for User + Badge (Mobile) ***
+            <div className="relative flex-shrink-0">
+              {" "}
+              {/* Wrap UserButton and Badge */}
+              <UserButton />
+              {/* Position Badge absolutely */}
+              <div className="absolute -bottom-1 -right-1 z-10">
+                <TierBadge />
+              </div>
+            </div>
+            // *** End Corrected Structure ***
+          )}
+          {/* Mobile Menu Trigger */}
           <button
             ref={mobileMenuButtonRef}
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-md text-gray-300 hover:text-white hover:bg-red-600/20"
+            onClick={() => setMobileMenuOpen(true)}
+            className="text-muted-foreground hover:text-foreground transition-colors p-1"
+            aria-label="Open menu"
           >
-            <MenuIcon />
-            <span className="sr-only">Toggle menu</span>
+            {" "}
+            <MenuIcon />{" "}
           </button>
-
-          <MobileMenu
-            isOpen={mobileMenuOpen}
-            onClose={() => setMobileMenuOpen(false)}
-            menuRef={mobileMenuRef}
-            routes={routes}
-            dashboardUrl="/customer"
-          />
         </div>
       </nav>
 
-      {user && (
-        <Cart
-          isOpen={cartOpen}
-          onClose={() => setCartOpen(false)}
-          cartRef={cartMenuRef}
-        />
-      )}
+      {/* Mobile Menu */}
+      <MobileMenu
+        ref={mobileMenuRef}
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        routes={routes}
+        showDashboard={showDashboardLink}
+        dashboardPath={dashboardPath}
+        onDashboardClick={handleDashboardClickMobile}
+        user={user}
+      />
+      {/* Cart Component */}
+      {/* Restore props and conditional rendering */}
+      {user &&
+        (user.role === UserRole.CUSTOMER ||
+          user.role === UserRole.PROCUSTOMER) && (
+          <Cart
+            isOpen={cartOpen}
+            onClose={() => setCartOpen(false)}
+            cartRef={cartMenuRef}
+          />
+        )}
     </header>
   );
-}
+};
+
+export default Navbar;

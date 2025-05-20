@@ -6,33 +6,29 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Loader2, Sparkles } from "lucide-react";
 import { CheckoutDetailsFormValues, checkoutDetailsSchema } from "../_actions/types";
-import { SessionUser } from "@/app/(customer)/SessionProvider";
 
 interface CheckoutDetailsFormProps {
-  user: SessionUser & {
-    streetAddress?: string | null;
-    suburb?: string | null;
-    townCity?: string | null;
+  userCheckoutPreferences?: {
+    shippingAddress?: string;
+    billingAddress?: string;
+    shippingMethod?: string;
+    paymentMethod?: string;
+    saveInfo?: boolean;
   };
   onSubmit: (data: CheckoutDetailsFormValues) => Promise<void>;
   isSubmitting: boolean;
 }
 
 const CheckoutDetailsForm: React.FC<CheckoutDetailsFormProps> = ({
-  user,
+  userCheckoutPreferences,
   onSubmit,
   isSubmitting,
 }) => {
+  const [isCelebrating, setIsCelebrating] = React.useState(false);
+  
   const {
     register,
     handleSubmit,
@@ -40,206 +36,164 @@ const CheckoutDetailsForm: React.FC<CheckoutDetailsFormProps> = ({
   } = useForm<CheckoutDetailsFormValues>({
     resolver: zodResolver(checkoutDetailsSchema),
     defaultValues: {
-      firstName: user.firstName || "",
-      lastName: user.lastName || "",
-      companyName: "",
-      country: user.country || "",
-      streetAddress: user.streetAddress || "",
-      apartmentSuite: user.suburb || "", // Map to the correct field name
-      townCity: user.townCity || "",
-      province: "", // Add missing required field
-      postcode: user.postcode || "",
-      phone: user.phoneNumber || "", // Map to the correct field name
-      email: user.email || "",
+      shippingAddress: userCheckoutPreferences?.shippingAddress || "",
+      billingAddress: userCheckoutPreferences?.billingAddress || "",
+      shippingMethod: userCheckoutPreferences?.shippingMethod || "standard",
+      paymentMethod: userCheckoutPreferences?.paymentMethod || "credit_card",
+      saveInfo: userCheckoutPreferences?.saveInfo || false
     },
   });
 
+  const handleSuccessfulSubmit = () => {
+    setIsCelebrating(true);
+    setTimeout(() => setIsCelebrating(false), 2000);
+  };
+
   return (
-    <Card className="shadow-lg border-2 border-green-200">
-      <CardHeader>
-        <CardTitle>
-          <span role="img" aria-label="cart">🛒</span> Checkout Details
-        </CardTitle>
-        <CardDescription>
-          Make your next purchase a breeze! Fill in your shipping & billing info below.
-        </CardDescription>
-      </CardHeader>
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <CardContent className="space-y-6">
-          <div className="flex items-center gap-2 text-green-700 font-semibold mb-2">
-            🚚 Shipping Info
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label htmlFor="checkout-firstName">First Name</Label>
-              <Input
-                id="checkout-firstName"
-                placeholder="e.g. Jane"
-                {...register("firstName")}
-                disabled={isSubmitting}
-                className="focus:ring-2 focus:ring-green-400"
-              />
-              {errors.firstName && (
-                <p className="text-sm text-red-600 animate-shake">
-                  {errors.firstName.message}
-                </p>
+    <div className="max-w-3xl mx-auto">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-br from-primary/10 to-accent/10 rounded-2xl p-1 shadow-lg"
+      >
+        <div className="bg-background rounded-xl p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <motion.h2 
+              className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent"
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring" }}
+            >
+              Checkout Details
+            </motion.h2>
+            
+            <AnimatePresence>
+              {isCelebrating && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0 }}
+                  className="absolute right-6 top-6"
+                >
+                  <Sparkles className="h-8 w-8 text-yellow-400 animate-pulse" />
+                </motion.div>
               )}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="checkout-lastName">Last Name</Label>
-              <Input
-                id="checkout-lastName"
-                placeholder="e.g. Doe"
-                {...register("lastName")}
+            </AnimatePresence>
+          </div>
+
+          <form onSubmit={handleSubmit(async (data) => {
+            await onSubmit(data);
+            handleSuccessfulSubmit();
+          })} className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[['shippingAddress', 'Shipping Address'], ['billingAddress', 'Billing Address']].map(([name, label]) => (
+                  <motion.div 
+                    key={name}
+                    whileHover={{ scale: 1.01 }}
+                    className="space-y-2"
+                  >
+                    <Label htmlFor={name}>{label}</Label>
+                    <Input
+                      id={name}
+                      {...register(name as keyof CheckoutDetailsFormValues)}
+                      disabled={isSubmitting}
+                      className="bg-background"
+                    />
+                    {errors[name as keyof CheckoutDetailsFormValues] && (
+                      <motion.p 
+                        className="text-sm text-destructive"
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                      >
+                        {errors[name as keyof CheckoutDetailsFormValues]?.message}
+                      </motion.p>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  className="space-y-2"
+                >
+                  <Label htmlFor="shippingMethod">Shipping Method</Label>
+                  <select
+                    id="shippingMethod"
+                    {...register('shippingMethod')}
+                    disabled={isSubmitting}
+                    className="bg-background border rounded-md p-2 w-full"
+                  >
+                    <option value="standard">Standard Shipping</option>
+                    <option value="express">Express Shipping</option>
+                    <option value="priority">Priority Shipping</option>
+                  </select>
+                </motion.div>
+                
+                <motion.div 
+                  whileHover={{ scale: 1.01 }}
+                  className="space-y-2"
+                >
+                  <Label htmlFor="paymentMethod">Payment Method</Label>
+                  <select
+                    id="paymentMethod"
+                    {...register('paymentMethod')}
+                    disabled={isSubmitting}
+                    className="bg-background border rounded-md p-2 w-full"
+                  >
+                    <option value="credit_card">Credit Card</option>
+                    <option value="paypal">PayPal</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                  </select>
+                </motion.div>
+              </div>
+              
+              <motion.div 
+                whileHover={{ scale: 1.01 }}
+                className="flex items-center space-x-2"
+              >
+                <input
+                  type="checkbox"
+                  id="saveInfo"
+                  {...register('saveInfo')}
+                  disabled={isSubmitting}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="saveInfo">Save this information for next time</Label>
+              </motion.div>
+            </motion.div>
+
+            <motion.div
+              className="flex justify-end"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <motion.button
+                type="submit"
                 disabled={isSubmitting}
-                className="focus:ring-2 focus:ring-green-400"
-              />
-              {errors.lastName && (
-                <p className="text-sm text-red-600 animate-shake">
-                  {errors.lastName.message}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="checkout-country">Country / Region</Label>
-            <Input
-              id="checkout-country"
-              placeholder="Where in the world are you?"
-              {...register("country")}
-              disabled={isSubmitting}
-              className="focus:ring-2 focus:ring-green-400"
-            />
-            {errors.country && (
-              <p className="text-sm text-red-600 animate-shake">{errors.country.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="checkout-streetAddress">Street Address</Label>
-            <Input
-              id="checkout-streetAddress"
-              placeholder="123 Rainbow Road"
-              {...register("streetAddress")}
-              disabled={isSubmitting}
-              className="focus:ring-2 focus:ring-green-400"
-            />
-            {errors.streetAddress && (
-              <p className="text-sm text-red-600 animate-shake">
-                {errors.streetAddress.message}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="checkout-apartmentSuite">Apartment, suite, etc.</Label>
-            <Input
-              id="checkout-apartmentSuite"
-              placeholder="(Optional)"
-              {...register("apartmentSuite")}
-              disabled={isSubmitting}
-              className="focus:ring-2 focus:ring-green-400"
-            />
-            {errors.apartmentSuite && (
-              <p className="text-sm text-red-600 animate-shake">{errors.apartmentSuite.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="checkout-townCity">Town / City</Label>
-            <Input
-              id="checkout-townCity"
-              placeholder="e.g. Cape Town"
-              {...register("townCity")}
-              disabled={isSubmitting}
-              className="focus:ring-2 focus:ring-green-400"
-            />
-            {errors.townCity && (
-              <p className="text-sm text-red-600 animate-shake">{errors.townCity.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="checkout-province">Province</Label>
-            <Input
-              id="checkout-province"
-              placeholder="e.g. Western Cape"
-              {...register("province")}
-              disabled={isSubmitting}
-              className="focus:ring-2 focus:ring-green-400"
-            />
-            {errors.province && (
-              <p className="text-sm text-red-600 animate-shake">{errors.province.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="checkout-postcode">Postcode</Label>
-            <Input
-              id="checkout-postcode"
-              placeholder="e.g. 8001"
-              {...register("postcode")}
-              disabled={isSubmitting}
-              className="focus:ring-2 focus:ring-green-400"
-            />
-            {errors.postcode && (
-              <p className="text-sm text-red-600 animate-shake">{errors.postcode.message}</p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label htmlFor="checkout-phone">Phone</Label>
-              <Input
-                id="checkout-phone"
-                type="tel"
-                placeholder="We'll text you updates! 📱"
-                {...register("phone")}
-                disabled={isSubmitting}
-                className="focus:ring-2 focus:ring-green-400"
-              />
-              <span className="text-xs text-gray-400">For delivery updates only.</span>
-              {errors.phone && (
-                <p className="text-sm text-red-600 animate-shake">
-                  {errors.phone.message}
-                </p>
-              )}
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="checkout-email">Email Address</Label>
-              <Input
-                id="checkout-email"
-                type="email"
-                placeholder="you@email.com"
-                {...register("email")}
-                disabled={isSubmitting}
-                className="focus:ring-2 focus:ring-green-400"
-              />
-              <span className="text-xs text-gray-400">We&apos;ll never spam you. Promise!</span>
-              {errors.email && (
-                <p className="text-sm text-red-600 animate-shake">{errors.email.message}</p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="ml-auto bg-gradient-to-r from-green-400 to-blue-400 hover:from-blue-400 hover:to-green-400 transition-all duration-300 font-bold"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating Details...
-              </>
-            ) : (
-              <>🎉 Update Details</>
-            )}
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+                className="relative overflow-hidden group inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background bg-primary text-primary-foreground hover:bg-primary/90 h-10 py-2 px-4"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </motion.button>
+            </motion.div>
+          </form>
+        </div>
+      </motion.div>
+    </div>
   );
 };
 

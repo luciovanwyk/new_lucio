@@ -1,185 +1,243 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from "react";
+import { Paperclip, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
+import { useSession } from "@/app/(customer)/SessionProvider";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-interface SupportFormData {
-  name: string;
-  email: string;
-  title: string;
-  message: string;
-}
-
-interface SubmitFormProps {
-  userName?: string;
-}
-
-const SubmitForm: React.FC<SubmitFormProps> = ({ userName }) => {
-  const [formData, setFormData] = useState<SupportFormData>({
-    name: '',
-    email: '',
-    title: '',
-    message: '',
-  });
-
-  const [status, setStatus] = useState('');
+export default function SupportForm() {
+  const { user } = useSession();
+  const formRef = useRef<HTMLFormElement>(null);
+  const router = useRouter();
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [attachmentName, setAttachmentName] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (userName) {
-      setFormData(prev => ({ ...prev, name: userName }));
+    if (user && formRef.current) {
+      const nameInput = formRef.current.elements.namedItem(
+        "name",
+      ) as HTMLInputElement;
+      const emailInput = formRef.current.elements.namedItem(
+        "email",
+      ) as HTMLInputElement;
+      const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+      if (nameInput) nameInput.value = fullName || user.username || "";
+      if (emailInput) emailInput.value = user.email || "";
     }
-  }, [userName]);
+  }, [user]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-    }));
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const MAX_SIZE = 5 * 1024 * 1024;
+      const ALLOWED_TYPES = [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+      ];
+      if (file.size > MAX_SIZE) {
+        toast.error("File is too large (Max 5MB).");
+        event.target.value = "";
+        return;
+      }
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        toast.error("Invalid file type. Only images are allowed.");
+        event.target.value = "";
+        return;
+      }
+      setAttachment(file);
+      setAttachmentName(file.name);
+    } else {
+      setAttachment(null);
+      setAttachmentName("");
+    }
+    event.target.value = "";
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStatus('Sending...');
+  const handleAttachmentClick = () => {
+    document.getElementById("support-attachment-input")?.click();
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitError(null);
+    if (!user || !formRef.current) {
+      toast.error(!user ? "You must be logged in." : "Form error.");
+      return;
+    }
     setIsSubmitting(true);
-
+    const formData = new FormData(formRef.current);
+    const loadingToastId = toast.loading("Sending message...");
     try {
-      const response = await fetch('/api/support', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+      const response = await fetch("/api/support-tickets/create", {
+        method: "POST",
+        credentials: "include", // Add this line to include cookies
+        body: formData,
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error ${response.status}: ${errorText}`);
-      }
-
+      toast.dismiss(loadingToastId);
       const result = await response.json();
-      setStatus(result.message);
-      setFormData({ name: '', email: '', title: '', message: '' });
-    } catch (error: any) {
-      setStatus(`Error: ${error.message}`);
-      console.error("Error submitting form:", error);
+      if (response.ok && result.success) {
+        toast.success("Message Sent Successfully!", { duration: 2000 });
+        formRef.current?.reset();
+        setAttachment(null);
+        setAttachmentName("");
+        if (user && formRef.current) {
+          const nameInput = formRef.current.elements.namedItem(
+            "name",
+          ) as HTMLInputElement;
+          const emailInput = formRef.current.elements.namedItem(
+            "email",
+          ) as HTMLInputElement;
+          const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+          if (nameInput) nameInput.value = fullName || user.username || "";
+          if (emailInput) emailInput.value = user.email || "";
+        }
+      } else {
+        setSubmitError(result.error || "Failed to send message");
+        toast.error(result.error || "Failed to send message");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setSubmitError("An unexpected error occurred");
+      toast.error("An unexpected error occurred");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const formStyle = {
-    maxWidth: '600px',
-    margin: '20px auto',
-    padding: '30px',
-    border: '1px solid #e0e0e0',
-    borderRadius: '8px',
-    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
-    backgroundColor: '#f9f9f9',
-  };
-
-  const labelStyle = {
-    display: 'block',
-    marginBottom: '8px',
-    fontWeight: '600',
-    color: '#333',
-  };
-
-  const inputStyle = {
-    width: '100%',
-    padding: '12px',
-    border: '1px solid #ccc',
-    borderRadius: '6px',
-    fontSize: '16px',
-    boxSizing: 'border-box' as 'border-box',
-    fontFamily: 'Arial, sans-serif',
-    marginBottom: '15px',
-  };
-
-  const buttonStyle = {
-    backgroundColor: '#2563eb',
-    color: 'white',
-    padding: '12px 20px',
-    border: 'none',
-    borderRadius: '6px',
-    fontSize: '16px',
-    cursor: isSubmitting ? 'not-allowed' : 'pointer',
-    transition: 'background-color 0.3s ease',
-  };
-
-  const statusStyle = {
-    marginTop: '20px',
-    padding: '15px',
-    borderRadius: '6px',
-    fontWeight: '500',
-    fontSize: '16px',
-    textAlign: 'center' as 'center',  // Correct textAlign
-  };
-
-  const successStyle = {
-    ...statusStyle,
-    color: '#155724',
-    backgroundColor: '#d4edda',
-    borderColor: '#c3e6cb',
-  };
-
-  const errorStyle = {
-    ...statusStyle,
-    color: '#721c24',
-    backgroundColor: '#f8d7da',
-    borderColor: '#f5c6cb',
-  };
-
   return (
-    <form onSubmit={handleSubmit} style={formStyle} noValidate>
-      {userName && (
-        <div style={{ marginBottom: '25px', fontSize: '1.3em', color: '#2e7d32', fontWeight: 'bold', textAlign: 'center' as 'center' }}>
-          Welcome, {userName}! Were here to help!
-        </div>
-      )}
-
-      <div style={{ marginBottom: '20px' }}>
-        <label htmlFor="name" style={labelStyle}>Name:</label>
-        <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} style={inputStyle} required placeholder="Your Name" />
-      </div>
-
-      <div style={{ marginBottom: '20px' }}>
-        <label htmlFor="email" style={labelStyle}>Email:</label>
-        <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} style={inputStyle} required placeholder="Your Email" />
-      </div>
-
-      <div style={{ marginBottom: '20px' }}>
-        <label htmlFor="title" style={labelStyle}>Subject:</label>
-        <input type="text" id="title" name="title" value={formData.title} onChange={handleChange} style={inputStyle} required placeholder="Briefly describe your issue" />
-      </div>
-
-      <div style={{ marginBottom: '20px' }}>
-        <label htmlFor="message" style={labelStyle}>Message:</label>
-        <textarea id="message" name="message" value={formData.message} onChange={handleChange} style={{ ...inputStyle, height: '150px', resize: 'vertical' }} required placeholder="Describe your issue in detail" />
-      </div>
-
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        style={{
-          ...buttonStyle,
-          cursor: isSubmitting ? 'not-allowed' : 'pointer',
-          backgroundColor: isHovered ? '#1e40af' : '#2563eb',
-        }}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      >
-        {isSubmitting ? 'Sending...' : 'Submit'}
-      </button>
-
-      {status && (
-        <p style={status.startsWith('Error') ? errorStyle : successStyle}>
-          {status}
-        </p>
-      )}
-    </form>
+    <Card className="max-w-xl mx-auto">
+      <CardHeader>
+        <CardTitle className="text-2xl text-center font-semibold">
+          Contact Support
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
+        <div className="space-y-1.5">
+            <Label htmlFor="subject">
+              Subject / Title <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="subject"
+              name="subject"
+              required
+              placeholder="e.g., Issue with order #12345"
+              disabled={!user || isSubmitting}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="name">
+              Your Name <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="name"
+              name="name"
+              required
+              disabled={!user || isSubmitting}
+              defaultValue={
+                user
+                  ? `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+                    user.username ||
+                    ""
+                  : ""
+              }
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="email">
+              Your Email <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              required
+              disabled={!user || isSubmitting}
+              defaultValue={user?.email ?? ""}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="message">
+              Your Message <span className="text-destructive">*</span>
+            </Label>
+            <Textarea
+              id="message"
+              name="message"
+              rows={5}
+              required
+              placeholder="Please describe your issue or question in detail..."
+              disabled={!user || isSubmitting}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Attachment (Optional - Max 5MB Image)</Label>
+            <Input
+              type="file"
+              id="support-attachment-input"
+              name="attachment"
+              className="hidden"
+              onChange={handleFileChange}
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              disabled={!user || isSubmitting}
+              aria-label="Attach an optional image file (Max 5MB)"
+            />
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleAttachmentClick}
+                disabled={!user || isSubmitting}
+              >
+                <Paperclip className="mr-2 h-4 w-4" aria-hidden="true" />
+                {attachmentName ? "Change File" : "Attach File"}
+              </Button>
+              {attachmentName && (
+                <span className="text-sm text-muted-foreground truncate">
+                  {attachmentName}
+                </span>
+              )}
+            </div>
+          </div>
+          <div>
+            <Button
+              type="submit"
+              disabled={!user || isSubmitting}
+              className="w-full"
+            >
+              {isSubmitting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {isSubmitting ? "Sending..." : "Send Message"}
+            </Button>
+          </div>
+          {submitError && (
+            <Alert variant="destructive" role="alert">
+              <AlertDescription>{submitError}</AlertDescription>
+            </Alert>
+          )}
+          {!user && (
+            <Alert
+              variant="default"
+              className="bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-300 text-center"
+            >
+              <AlertDescription>
+                Please log in to submit a support request.
+              </AlertDescription>
+            </Alert>
+          )}
+        </form>
+      </CardContent>
+    </Card>
   );
-};
-
-export default SubmitForm;
+}

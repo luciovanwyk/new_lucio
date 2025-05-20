@@ -1,168 +1,148 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "react-hot-toast";
-
-import {
-  PasswordChangeFormValues,
-  passwordChangeSchema,
-} from "../_actions/types";
-import { changePassword } from "../_actions/actions";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Loader2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { motion, AnimatePresence } from "framer-motion";
+import { Loader2, Sparkles, Check } from "lucide-react";
+import { PasswordChangeFormValues, passwordChangeSchema } from "../_actions/types";
 
-export default function PasswordChangeForm() {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+interface PasswordChangeFormProps {
+  onSubmit: (data: PasswordChangeFormValues) => Promise<void>;
+  isSubmitting: boolean;
+}
 
-  const form = useForm<PasswordChangeFormValues>({
+const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
+  onSubmit,
+  isSubmitting,
+}) => {
+  const [isCelebrating, setIsCelebrating] = React.useState(false);
+  const [isSuccess, setIsSuccess] = React.useState(false);
+  
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<PasswordChangeFormValues>({
     resolver: zodResolver(passwordChangeSchema),
-    defaultValues: {
-      currentPassword: "",
-      newPassword: "",
-      confirmNewPassword: "",
-    },
   });
 
-  const onSubmit = async (data: PasswordChangeFormValues) => {
-    setIsSubmitting(true);
-    form.clearErrors();
-
-    try {
-      const result = await changePassword(data);
-
-      if (result.success) {
-        toast.success(result.message || "Password updated! 🎉");
-        form.reset();
-      } else {
-        toast.error(result.error || "Failed to update password. 😞");
-
-        if (result.fieldErrors?.currentPassword) {
-          form.setError("currentPassword", {
-            type: "server",
-            message: result.fieldErrors.currentPassword,
-          });
-        }
-        if (result.fieldErrors?.confirmNewPassword) {
-          form.setError("confirmNewPassword", {
-            type: "server",
-            message: result.fieldErrors.confirmNewPassword,
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Client error changing password:", error);
-      toast.error("An unexpected client error occurred. 🙁");
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleSuccessfulSubmit = () => {
+    setIsCelebrating(true);
+    setIsSuccess(true);
+    setTimeout(() => {
+      setIsCelebrating(false);
+      reset();
+    }, 2000);
   };
 
   return (
-    <Card className="shadow-lg border-2 border-red-200">
-      <CardHeader>
-        <CardTitle>
-          <span role="img" aria-label="lock">
-            🔒
-          </span>{" "}
-          Change Password
-        </CardTitle>
-        <CardDescription>
-          Keep your account secure! Update to a strong, unique password.
-        </CardDescription>
-      </CardHeader>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
-          <CardContent className="space-y-6">
-            <FormField
-              control={form.control}
-              name="currentPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Current Password</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="Enter your current password"
-                      {...field}
-                      disabled={isSubmitting}
-                      className="focus:ring-2 focus:ring-red-400"
-                    />
-                  </FormControl>
-                  <FormMessage className="text-sm text-red-600 animate-shake" />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="newPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>New Password</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="Enter your new password (min. 8 characters)"
-                      {...field}
-                      disabled={isSubmitting}
-                      className="focus:ring-2 focus:ring-red-400"
-                    />
-                  </FormControl>
-                  <FormMessage className="text-sm text-red-600 animate-shake" />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="confirmNewPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Confirm New Password</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="Confirm your new password"
-                      {...field}
-                      disabled={isSubmitting}
-                      className="focus:ring-2 focus:ring-red-400"
-                    />
-                  </FormControl>
-                  <FormMessage className="text-sm text-red-600 animate-shake" />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-          <CardFooter>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-orange-500 hover:to-red-500 text-white font-bold transition-all duration-300"
+    <div className="max-w-3xl mx-auto">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-br from-primary/10 to-accent/10 rounded-2xl p-1 shadow-lg"
+      >
+        <div className="bg-background rounded-xl p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <motion.h2 
+              className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent"
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring" }}
             >
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? "Updating..." : "Change Password"}
-            </Button>
-          </CardFooter>
-        </form>
-      </Form>
-    </Card>
+              Change Password
+            </motion.h2>
+            
+            <AnimatePresence>
+              {isCelebrating && (
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0 }}
+                  className="absolute right-6 top-6"
+                >
+                  {isSuccess ? (
+                    <Check className="h-8 w-8 text-green-500" />
+                  ) : (
+                    <Sparkles className="h-8 w-8 text-yellow-400 animate-pulse" />
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <form onSubmit={handleSubmit(async (data) => {
+            await onSubmit(data);
+            handleSuccessfulSubmit();
+          })} className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
+              
+{['currentPassword', 'newPassword', 'confirmNewPassword'].map((name) => (
+  <motion.div 
+    key={name}
+    whileHover={{ scale: 1.01 }}
+    className="space-y-2"
+  >
+    <Label htmlFor={name}>
+      {name === 'currentPassword' ? 'Current Password' : 
+       name === 'newPassword' ? 'New Password' : 'Confirm New Password'}
+    </Label>
+    <Input
+      id={name}
+      type="password"
+      {...register(name as keyof PasswordChangeFormValues)}
+      disabled={isSubmitting}
+      className="bg-background"
+    />
+    {errors[name as keyof PasswordChangeFormValues] && (
+      <motion.p 
+        className="text-sm text-destructive"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        {errors[name as keyof PasswordChangeFormValues]?.message}
+      </motion.p>
+    )}
+  </motion.div>
+))}
+            </motion.div>
+
+            <motion.div
+              className="flex justify-end"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <motion.button
+                type="submit"
+                disabled={isSubmitting}
+                className="relative overflow-hidden group inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none ring-offset-background bg-primary text-primary-foreground hover:bg-primary/90 h-10 py-2 px-4"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating...
+                  </>
+                ) : (
+                  "Update Password"
+                )}
+              </motion.button>
+            </motion.div>
+          </form>
+        </div>
+      </motion.div>
+    </div>
   );
-}
+};
+
+export default PasswordChangeForm;

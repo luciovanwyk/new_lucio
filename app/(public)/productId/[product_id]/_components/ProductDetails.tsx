@@ -1,17 +1,41 @@
+// app/(public)/productId/[product_id]/_components/ProductDetails.tsx
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link"; // <<< Import Link
 import { toast } from "sonner";
-import { useProductDetails } from "../useProductDetails";
-import { useProductStore } from "../../../(group-products)/_components/_store/product-store";
+import { useProductDetails } from "../useProductDetails"; // Adjust path if needed
 import ProductImage from "./ProductImage";
 import VariationSelector from "./VariationSelector";
+import ImageThumbnailSelector from "./ImageThumbnailSelector";
 import ProductStatus from "./ProductStatus";
 import WishlistButton from "./WishlistButton";
 import { useTierDiscount } from "@/app/(public)/(group-products)/_components/(filterside)/tier-util";
+import { Button } from "@/components/ui/button";
+import { Loader2, Star, X } from "lucide-react"; // <<< Import X icon
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"; // <<< Import Tooltip components
+import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// Define types
+// formatCurrency Helper Function
+const formatCurrency = (amount: number | null | undefined): string => {
+  if (typeof amount !== "number" || isNaN(amount)) {
+    return "R0,00";
+  }
+  return new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" })
+    .format(amount)
+    .replace("ZAR", "R")
+    .replace(".", ",");
+};
+
+// Interfaces
 interface Variation {
   id: string;
   name: string;
@@ -22,376 +46,238 @@ interface Variation {
   price: number;
   imageUrl: string;
 }
-
 interface AddToCartResult {
   success: boolean;
   message: string;
   cartItemCount?: number;
 }
-
+// --- ADD PROPS for back button ---
 interface ProductDetailsProps {
-  initialProductId?: string;
   addToCartAction: (formData: {
     variationId: string;
     quantity: number;
   }) => Promise<AddToCartResult>;
-  updateCartItemAction?: (formData: {
-    cartItemId: string;
-    quantity: number;
-  }) => Promise<AddToCartResult>;
-  clearCartAction?: () => Promise<{ success: boolean; message: string }>;
+  backUrl: string; // URL for the back button
+  productCategoryName: string; // Name for the tooltip
 }
+// --- END ADD PROPS ---
 
+// --- Update function signature ---
 export default function ProductDetails({
-  initialProductId,
   addToCartAction,
-  updateCartItemAction,
-  clearCartAction,
+  backUrl,
+  productCategoryName,
 }: ProductDetailsProps) {
+  // --- END Update function signature ---
+
   const params = useParams();
-  const [isStoreReady, setIsStoreReady] = useState<boolean>(false);
+  const productIdParam = params?.product_id || params?.productId;
+
+  // --- State ---
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [selectedVariationImage, setSelectedVariationImage] = useState<
+  const [selectedGalleryImageUrl, setSelectedGalleryImageUrl] = useState<
     string | null
   >(null);
   const [quantity, setQuantity] = useState<number>(1);
   const [isAddingToCart, setIsAddingToCart] = useState<boolean>(false);
 
-  // Get tier discount information
+  // --- Hooks ---
   const { hasDiscount, calculatePrice, userTier, discountPercentage } =
     useTierDiscount();
-
-  // Get store data
-  const allProducts = useProductStore((state) => state.allProducts);
-  const fetchProducts = useProductStore((state) => state.fetchProducts);
-
-  // Get product ID from params or props
-  const productId = useMemo<string | null>(() => {
-    // First priority: Use initialProductId if provided
-    if (initialProductId) return initialProductId;
-
-    // Second priority: Check URL params
-    if (!params) return null;
-
-    // Try different possible param names
-    let id: string | null = null;
-
-    if (typeof params.productId === "string") {
-      id = params.productId;
-    } else if (Array.isArray(params.productId) && params.productId.length > 0) {
-      id = params.productId[0] as string;
-    } else if (typeof params.product_id === "string") {
-      id = params.product_id;
-    } else if (
-      Array.isArray(params.product_id) &&
-      params.product_id.length > 0
-    ) {
-      id = params.product_id[0] as string;
-    } else {
-      // Try to find any param that looks like a UUID
-      const uuidRegex =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-      Object.entries(params).forEach(([key, value]) => {
-        if (!id && typeof value === "string" && uuidRegex.test(value)) {
-          id = value;
-        }
-      });
-    }
-
-    return id;
-  }, [params, initialProductId]);
-
-  // Initialize store
-  useEffect(() => {
-    if (allProducts.length === 0) {
-      fetchProducts().then(() => setIsStoreReady(true));
-    } else {
-      setIsStoreReady(true);
-    }
-  }, [allProducts, fetchProducts]);
-
-  // Get product details
   const { product, isLoading, error } = useProductDetails({
-    productId: isStoreReady ? productId : null,
+    productId: productIdParam as string | null,
     autoLoad: true,
   });
 
-  // Get current variation
-  const currentVariation = useMemo<Variation | null>(() => {
-    if (!product?.variations || !selectedColor || !selectedSize) {
-      return null;
-    }
+  // --- Memos ---
+  const isGalleryMode = useMemo(() => {
+    if (!product?.variations || product.variations.length <= 1) return false;
+    const firstColor = product.variations[0].color;
+    const firstSize = product.variations[0].size;
+    return product.variations.every(
+      (v) => v.color === firstColor && v.size === firstSize,
+    );
+  }, [product]);
 
+  const currentVariation = useMemo<Variation | null>(() => {
+    if (
+      isGalleryMode ||
+      !product?.variations ||
+      !selectedColor ||
+      !selectedSize
+    )
+      return null;
     return (
       product.variations.find(
         (v) => v.color === selectedColor && v.size === selectedSize,
       ) || null
     );
-  }, [product, selectedColor, selectedSize]);
+  }, [product, selectedColor, selectedSize, isGalleryMode]);
 
-  // Calculate discounted prices based on user tier
-  const discountedVariationPrice = useMemo(() => {
-    if (!currentVariation) return null;
-    return calculatePrice(currentVariation.price);
-  }, [currentVariation, calculatePrice]);
-
-  const discountedBasePrice = useMemo(() => {
-    if (!product) return null;
-    return calculatePrice(product.sellingPrice);
-  }, [product, calculatePrice]);
-
-  // Set default selections when product loads, but don't reset quantity
-  useEffect(() => {
-    if (product?.variations?.length) {
-      const firstVariation = product.variations[0];
-      setSelectedColor(firstVariation.color);
-      setSelectedSize(firstVariation.size);
-      setSelectedVariationImage(firstVariation.imageUrl);
-      // Removed the setQuantity(1) line to preserve quantity
-    }
+  const primaryVariationForCart = useMemo<Variation | null>(() => {
+    if (!product?.variations || product.variations.length === 0) return null;
+    return product.variations[0];
   }, [product]);
 
-  // Update variation image when current variation changes
+  const displayVariationForPriceAndStock = isGalleryMode
+    ? primaryVariationForCart
+    : currentVariation;
+
+  const discountedVariationPrice = useMemo(() => {
+    if (!displayVariationForPriceAndStock) return null;
+    return calculatePrice(displayVariationForPriceAndStock.price);
+  }, [displayVariationForPriceAndStock, calculatePrice]);
+
+  const tierName = userTier.charAt(0) + userTier.slice(1).toLowerCase();
+
+  // --- Effects ---
   useEffect(() => {
-    if (currentVariation) {
-      setSelectedVariationImage(currentVariation.imageUrl);
+    setSelectedGalleryImageUrl(null);
+    if (!isGalleryMode && product?.variations?.length) {
+      if (product.variations.length === 1) {
+        const uniqueVariation = product.variations[0];
+        setSelectedColor(uniqueVariation.color);
+        setSelectedSize(uniqueVariation.size);
+      } else if (selectedColor === null && selectedSize === null) {
+        setSelectedColor(null);
+        setSelectedSize(null);
+      }
+    } else if (!isGalleryMode) {
+      setSelectedColor(null);
+      setSelectedSize(null);
     }
-  }, [currentVariation]);
+    setQuantity(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product, isGalleryMode]);
 
-  // Handle color selection
+  // --- Handlers ---
   const handleColorSelect = (color: string): void => {
+    if (isGalleryMode) return;
     setSelectedColor(color);
-
     if (!product?.variations) return;
-
-    // Find sizes available for this color
-    const variationsForColor = product.variations.filter(
+    const variationsWithNewColor = product.variations.filter(
       (v) => v.color === color,
     );
-    const sizesForColor = variationsForColor.map((v) => v.size);
-
-    // If current size isn't available, select the first one
-    if (!sizesForColor.includes(selectedSize as string)) {
-      setSelectedSize(sizesForColor[0]);
-    }
-
-    // Find the specific variation to get its image
-    const variation = variationsForColor.find(
-      (v) =>
-        v.size ===
-        (sizesForColor.includes(selectedSize as string)
-          ? selectedSize
-          : sizesForColor[0]),
-    );
-
-    if (variation) {
-      setSelectedVariationImage(variation.imageUrl);
-    }
+    const availableSizesForNewColor = variationsWithNewColor.map((v) => v.size);
+    const newSize = availableSizesForNewColor.includes(selectedSize as string)
+      ? selectedSize
+      : (availableSizesForNewColor[0] ?? null);
+    setSelectedSize(newSize);
+    setQuantity(1);
   };
 
-  // Handle adding to cart
-  const handleAddToCart = async () => {
-    if (!currentVariation) return;
+  const handleSizeSelect = (size: string): void => {
+    if (isGalleryMode) return;
+    setSelectedSize(size);
+    setQuantity(1);
+  };
 
+  const handleGalleryImageSelect = (imageUrl: string): void => {
+    setSelectedGalleryImageUrl(imageUrl);
+  };
+
+  const handleAddToCart = async (buyNow = false) => {
+    const variationToAdd = isGalleryMode
+      ? primaryVariationForCart
+      : currentVariation;
+    if (!variationToAdd) {
+      toast.error(
+        "Please select valid product options or product is unavailable.",
+      );
+      return;
+    }
+    if (quantity <= 0 || quantity > variationToAdd.quantity) {
+      toast.error("Invalid quantity selected or exceeds available stock.");
+      return;
+    }
     setIsAddingToCart(true);
-
     try {
       const result = await addToCartAction({
-        variationId: currentVariation.id,
+        variationId: variationToAdd.id,
         quantity: quantity,
       });
-
       if (result.success) {
-        // Use Sonner toast with more detailed information
-        toast.success(`Added ${quantity} item(s) to cart`, {
-          description: currentVariation.name || product?.productName,
+        toast.success(result.message || `Added ${quantity} item(s) to cart`, {
+          description: product?.productName,
           duration: 3000,
         });
-
-        // Force refresh the cart state to ensure UI updates immediately
-        // This ensures the cart count badge in the navbar updates right away
-        try {
-          // We're importing and using the cart store directly
-          if (typeof window !== "undefined") {
-            // Only run on client side
-            import("../../../productId/cart/_store/cart-store")
-              .then((module) => {
-                const cartStore = module.useCartStore;
-                cartStore.getState().refreshCart(true);
-              })
-              .catch((e) => console.error("Error importing cart store:", e));
-          }
-        } catch (e) {
-          console.error("Error refreshing cart:", e);
+        if (typeof window !== "undefined") {
+          import("../../../productId/cart/_store/cart-store").then((m) =>
+            m.useCartStore.getState().refreshCart(true),
+          );
         }
-
-        // Not resetting quantity to 1 here to preserve the user's selection
+        if (buyNow && typeof window !== "undefined") {
+          window.location.href = "/checkout";
+        }
       } else {
-        toast.error(result.message);
+        toast.error(result.message || "Failed to add item to cart.");
       }
-    } catch (error) {
-      toast.error("Failed to add item to cart");
-      console.error("Add to cart error:", error);
+    } catch (err) {
+      console.error("Add to cart error:", err);
+      toast.error("An error occurred while adding the item to the cart.");
     } finally {
       setIsAddingToCart(false);
     }
   };
 
-  // Check loading, error, and not found states
-  const showStatus = !isStoreReady || isLoading || error || !product;
-  if (showStatus) {
+  // --- Loading / Error / No Variations States ---
+  if (isLoading) {
+    return (
+      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-8 lg:gap-12 animate-pulse p-1">
+        <div className="md:col-span-2">
+          <Skeleton className="aspect-square w-full bg-muted rounded-lg" />
+        </div>
+        <div className="md:col-span-3 space-y-4 p-6 md:p-8">
+          <Skeleton className="h-8 w-3/4 bg-muted" />
+          <Skeleton className="h-6 w-1/4 bg-muted" />
+          <Skeleton className="h-4 w-full bg-muted" />
+          <Skeleton className="h-4 w-5/6 bg-muted" />
+          <Skeleton className="h-16 w-full bg-muted" />
+          <Skeleton className="h-12 w-full bg-muted" />
+          <div className="flex gap-3 mt-auto pt-2">
+            <Skeleton className="h-11 flex-1 bg-muted rounded-md" />
+            <Skeleton className="h-11 flex-1 bg-muted rounded-md" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (error || !product) {
     return (
       <ProductStatus
-        isLoading={!isStoreReady || isLoading}
+        isLoading={false}
         error={error}
-        productId={productId}
-        isProductFound={!!product}
+        productId={productIdParam as string | null}
+        isProductFound={false}
       />
     );
   }
-
-  // Format the tier name for display
-  const tierName = userTier.charAt(0) + userTier.slice(1).toLowerCase();
-
-  // No variations
   if (!product.variations || product.variations.length === 0) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-lg shadow-sm border overflow-hidden relative">
-          {/* Tier Discount Badge */}
-          {hasDiscount && (
-            <div className="absolute top-2 left-2 z-10 bg-red-600 text-white text-sm font-bold px-3 py-1 rounded-md">
-              {Math.round(discountPercentage * 100)}% {tierName} Discount
-            </div>
-          )}
-
-          {/* Wishlist button in top right corner of the card */}
-          <div className="absolute top-2 right-2 z-10">
-            {product.id && (
-              <WishlistButton
-                variationId={product.id}
-                productName={product.productName}
-              />
-            )}
+      <div className="max-w-6xl mx-auto">
+        <div className="relative grid grid-cols-1 md:grid-cols-5 gap-8 lg:gap-12 bg-card text-card-foreground rounded-lg shadow-sm border border-border overflow-hidden p-1 md:p-4 lg:p-6">
+          <div className="md:col-span-2 relative p-4 md:p-6 self-start">
+            <ProductImage
+              imageUrl={product.productImgUrl}
+              productName={product.productName}
+            />
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[600px]">
-            {/* Product Image */}
-            <div className="p-4 h-full flex items-center">
-              <div className="w-full">
-                <ProductImage
-                  imageUrl={product.productImgUrl}
-                  productName={product.productName}
-                />
-              </div>
-            </div>
-
-            {/* Product Details */}
-            <div className="p-4">
-              <h1 className="text-xl font-bold mb-2">{product.productName}</h1>
-
-              {/* Price with discount if applicable */}
-              {hasDiscount ? (
-                <div className="mb-2">
-                  <p className="text-lg font-semibold text-red-600">
-                    R{(discountedBasePrice! * quantity).toFixed(2)}
-                    {quantity > 1 && (
-                      <span className="text-sm ml-2">
-                        (R{discountedBasePrice!.toFixed(2)} each)
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-sm text-gray-600 line-through">
-                    Original: R{(product.sellingPrice * quantity).toFixed(2)}
-                  </p>
-                  <p className="text-xs text-gray-600">
-                    {tierName} member price (
-                    {Math.round(discountPercentage * 100)}% off)
-                  </p>
-                </div>
-              ) : (
-                <p className="text-lg font-semibold mb-2">
-                  R{(product.sellingPrice * quantity).toFixed(2)}
-                  {quantity > 1 && (
-                    <span className="text-sm text-gray-600 ml-2">
-                      (R{product.sellingPrice.toFixed(2)} each)
-                    </span>
-                  )}
-                </p>
-              )}
-
-              <div className="mb-4 text-sm">
-                <p>{product.description}</p>
-              </div>
-              <div className="my-3 text-sm text-yellow-600">
-                <p>No variations available for this product</p>
-              </div>
-
-              {/* Quantity Selector */}
-              <div className="mt-6 mb-4">
-                <label
-                  htmlFor="quantity"
-                  className="block text-sm font-medium mb-1"
-                >
-                  Quantity
-                </label>
-                <div className="flex items-center">
-                  <button
-                    type="button"
-                    className="w-10 h-10 bg-gray-100 rounded-l flex items-center justify-center hover:bg-gray-200"
-                    onClick={() => setQuantity(quantity > 1 ? quantity - 1 : 1)}
-                  >
-                    <span className="text-lg">−</span>
-                  </button>
-                  <input
-                    type="number"
-                    id="quantity"
-                    className="w-16 h-10 text-center border-y focus:outline-none"
-                    min="1"
-                    value={quantity}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value);
-                      if (isNaN(val)) {
-                        setQuantity(1);
-                      } else if (val < 1) {
-                        setQuantity(1);
-                      } else {
-                        setQuantity(val);
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="w-10 h-10 bg-gray-100 rounded-r flex items-center justify-center hover:bg-gray-200"
-                    onClick={() => setQuantity(quantity + 1)}
-                  >
-                    <span className="text-lg">+</span>
-                  </button>
-                </div>
-              </div>
-
-              <button
-                className={`mt-3 w-full bg-black text-white py-2 rounded hover:bg-gray-800 ${
-                  isAddingToCart ? "opacity-70 cursor-not-allowed" : ""
-                }`}
-                onClick={() => {
-                  // We can't use server actions here since there's no variation
-                  console.log("Adding to cart:", {
-                    productId: product.id,
-                    productName: product.productName,
-                    quantity: quantity,
-                    price: product.sellingPrice,
-                  });
-                  toast.error(
-                    "This product cannot be added to cart as it has no variations",
-                  );
-                }}
-                disabled={isAddingToCart}
-              >
-                {isAddingToCart ? "Adding..." : "Add to Cart"}
-              </button>
+          <div className="md:col-span-3 p-6 md:p-8 flex flex-col">
+            <h1 className="text-2xl lg:text-3xl font-bold mb-2">
+              {product.productName}
+            </h1>
+            <p className="text-2xl lg:text-3xl font-bold mb-4">
+              {formatCurrency(product.sellingPrice)}
+            </p>
+            <p className="text-sm text-muted-foreground mb-6 line-clamp-3">
+              {product.description}
+            </p>
+            <div className="mt-auto pt-4 border-t border-border">
+              <p className="text-center text-muted-foreground font-medium">
+                This product is currently unavailable or has no selectable
+                options.
+              </p>
             </div>
           </div>
         </div>
@@ -399,208 +285,331 @@ export default function ProductDetails({
     );
   }
 
+  // Determine image to show
+  const mainDisplayImageUrl = isGalleryMode
+    ? selectedGalleryImageUrl || product.productImgUrl
+    : currentVariation?.imageUrl || product.productImgUrl;
+
+  // --- Main Render ---
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden relative">
-        {/* Tier Discount Badge */}
-        {hasDiscount && (
-          <div className="absolute top-2 left-2 z-10 bg-red-600 text-white text-sm font-bold px-3 py-1 rounded-md">
-            {Math.round(discountPercentage * 100)}% {tierName} Discount
-          </div>
-        )}
-
-        {/* Wishlist button in top right corner of the card */}
-        <div className="absolute top-2 right-2 z-10">
-          {currentVariation && (
-            <WishlistButton
-              variationId={currentVariation.id}
-              productName={product.productName}
-            />
-          )}
+    <div className="max-w-6xl mx-auto">
+      {/* Added 'relative' positioning context to the main card container */}
+      <div className="relative grid grid-cols-1 md:grid-cols-5 gap-8 lg:gap-12 bg-card text-card-foreground rounded-lg shadow-sm border border-border overflow-hidden p-1 md:p-4 lg:p-6">
+        {/* Back/Close Button positioned inside the card */}
+        <div className="absolute top-3 right-3 z-20">
+          <TooltipProvider delayDuration={100}>
+            <Tooltip>
+              {backUrl && (
+                <Link href={backUrl} passHref legacyBehavior>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-accent/50 rounded-full"
+                      aria-label={`Back to ${productCategoryName}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                </Link>
+              )}
+              <TooltipContent>
+                <p>Back to {productCategoryName || "Collection"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Product Image - Left Column */}
-          <div className="p-4 h-full flex items-center">
-            <div className="w-full">
-              <ProductImage
-                imageUrl={selectedVariationImage || product.productImgUrl}
+        {/* Image Column (LEFT) */}
+        {/* Added padding top to make space for absolute buttons */}
+        <div className="md:col-span-2 relative self-start flex flex-col pt-6 md:pt-0">
+          {/* Discount Badge */}
+          {hasDiscount && displayVariationForPriceAndStock && (
+            <div className="absolute top-3 left-3 z-10 bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow">
+              {" "}
+              {/* Adjusted positioning slightly */}
+              {Math.round(discountPercentage * 100)}% {tierName} Discount
+            </div>
+          )}
+          {/* Main Product Image */}
+          <ProductImage
+            imageUrl={mainDisplayImageUrl}
+            productName={product.productName}
+          />
+          {/* Wishlist Button */}
+          {/* Moved Wishlist outside the Image for better stacking, position near top-left corner */}
+          <div className="absolute top-3 left-3 z-10">
+            {/* Show wishlist button only if there's a variation to add (usually the primary one) */}
+            {primaryVariationForCart && (
+              <WishlistButton
+                variationId={primaryVariationForCart.id}
                 productName={product.productName}
+                className="bg-card/70 hover:bg-card/90 backdrop-blur-sm p-1.5 rounded-full" // Adjust styling as needed
               />
-            </div>
-          </div>
-
-          {/* Product Details - Right Column */}
-          <div className="p-4">
-            <h1 className="text-xl font-bold mb-2">{product.productName}</h1>
-
-            {/* Price display with discount if applicable */}
-            {hasDiscount && currentVariation ? (
-              <div className="mb-2">
-                <p className="text-lg font-semibold text-red-600">
-                  R{(discountedVariationPrice! * quantity).toFixed(2)}
-                  {quantity > 1 && (
-                    <span className="text-sm ml-2">
-                      (R{discountedVariationPrice!.toFixed(2)} each)
-                    </span>
-                  )}
-                </p>
-                <p className="text-sm text-gray-600 line-through">
-                  Original: R{(currentVariation.price * quantity).toFixed(2)}
-                </p>
-                <p className="text-xs text-gray-600">
-                  {tierName} member price (
-                  {Math.round(discountPercentage * 100)}% off)
-                </p>
-              </div>
-            ) : (
-              <p className="text-lg font-semibold mb-2">
-                R
-                {(currentVariation
-                  ? currentVariation.price * quantity
-                  : product.sellingPrice * quantity
-                ).toFixed(2)}
-                {quantity > 1 && (
-                  <span className="text-sm text-gray-600 ml-2">
-                    (R
-                    {(currentVariation?.price || product.sellingPrice).toFixed(
-                      2,
-                    )}{" "}
-                    each)
-                  </span>
-                )}
-              </p>
             )}
-
-            <div className="mb-4 text-sm">
-              <p>{product.description}</p>
-            </div>
-
-            <VariationSelector
-              variations={product.variations}
-              selectedColor={selectedColor}
-              selectedSize={selectedSize}
-              onColorSelect={handleColorSelect}
-              onSizeSelect={setSelectedSize}
-              currentVariation={currentVariation}
-            />
-
-            {/* Debug Info - Remove this in production */}
-            <div className="mt-3 p-2 bg-gray-100 rounded text-xs text-gray-700">
-              <p>Product ID: {product.id}</p>
-              <p>Selected Color: {selectedColor}</p>
-              <p>Selected Size: {selectedSize}</p>
-              <p>Variation ID: {currentVariation?.id || "none"}</p>
-              <p>
-                Image: {selectedVariationImage?.split("/").pop() || "(default)"}
-              </p>
-              {hasDiscount && (
+          </div>
+          {/* Image Thumbnail Selector (Conditionally Rendered Below Image) */}
+          {isGalleryMode &&
+            product.variations &&
+            product.variations.length > 0 && (
+              <div className="mt-4 w-full">
+                <ImageThumbnailSelector
+                  variations={product.variations}
+                  productImageUrl={product.productImgUrl}
+                  selectedImageUrl={selectedGalleryImageUrl}
+                  onImageSelect={handleGalleryImageSelect}
+                />
+              </div>
+            )}
+        </div>
+        {/* Details Column (RIGHT) */}
+        {/* Added padding top to align with image column roughly */}
+        <div className="md:col-span-3 flex flex-col pt-6 md:pt-0">
+          {/* Title - Added padding-right to avoid overlapping with X button */}
+          <h1 className="text-2xl lg:text-3xl font-bold mb-2 pr-10">
+            {product.productName}
+          </h1>
+          {/* Rating */}
+          <div className="flex items-center gap-1 mb-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star
+                key={i}
+                size={16}
+                className={
+                  i < 4
+                    ? "fill-yellow-400 text-yellow-400"
+                    : "fill-muted stroke-muted-foreground"
+                }
+              />
+            ))}
+            <span className="text-sm text-muted-foreground ml-1">(4.5)</span>
+          </div>
+          {/* Price display */}
+          <div className="mb-4 min-h-[3.5rem]">
+            {displayVariationForPriceAndStock ? (
+              hasDiscount ? (
                 <>
-                  <p>User Tier: {tierName}</p>
-                  <p>Discount: {Math.round(discountPercentage * 100)}%</p>
-                  <p>
-                    Original Price: R
-                    {currentVariation?.price.toFixed(2) || "N/A"}
+                  <p className="text-2xl lg:text-3xl font-bold text-red-600 dark:text-red-500">
+                    {" "}
+                    {formatCurrency(discountedVariationPrice)}{" "}
                   </p>
-                  <p>
-                    Discounted Price: R
-                    {discountedVariationPrice?.toFixed(2) || "N/A"}
+                  <p className="text-sm text-muted-foreground line-through mt-0.5">
+                    {" "}
+                    {formatCurrency(
+                      displayVariationForPriceAndStock.price,
+                    )}{" "}
                   </p>
                 </>
-              )}
-            </div>
-
-            {/* Quantity Selector */}
-            <div className="mt-6 mb-4">
-              <label
-                htmlFor="quantity"
-                className="block text-sm font-medium mb-1"
-              >
-                Quantity
-              </label>
-              <div className="flex items-center">
-                <button
-                  type="button"
-                  className="w-10 h-10 bg-gray-100 rounded-l flex items-center justify-center hover:bg-gray-200"
-                  onClick={() => setQuantity(quantity > 1 ? quantity - 1 : 1)}
-                  disabled={
-                    !currentVariation ||
-                    currentVariation.quantity <= 0 ||
-                    isAddingToCart
-                  }
-                >
-                  <span className="text-lg">−</span>
-                </button>
-                <input
-                  type="number"
-                  id="quantity"
-                  className="w-16 h-10 text-center border-y focus:outline-none"
-                  min="1"
-                  max={currentVariation?.quantity || 1}
-                  value={quantity}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    if (isNaN(val)) {
-                      setQuantity(1);
-                    } else if (val < 1) {
-                      setQuantity(1);
-                    } else if (
-                      currentVariation &&
-                      val > currentVariation.quantity
-                    ) {
-                      setQuantity(currentVariation.quantity);
-                    } else {
-                      setQuantity(val);
-                    }
-                  }}
-                  disabled={
-                    !currentVariation ||
-                    currentVariation.quantity <= 0 ||
-                    isAddingToCart
-                  }
-                />
-                <button
-                  type="button"
-                  className="w-10 h-10 bg-gray-100 rounded-r flex items-center justify-center hover:bg-gray-200"
-                  onClick={() => {
-                    if (currentVariation) {
-                      setQuantity(
-                        quantity < currentVariation.quantity
-                          ? quantity + 1
-                          : currentVariation.quantity,
-                      );
-                    }
-                  }}
-                  disabled={
-                    !currentVariation ||
-                    currentVariation.quantity <= 0 ||
-                    (currentVariation &&
-                      quantity >= currentVariation.quantity) ||
-                    isAddingToCart
-                  }
-                >
-                  <span className="text-lg">+</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Add to cart button */}
-            <button
-              className={`mt-3 w-full bg-black text-white py-2 rounded hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed ${
-                isAddingToCart ? "opacity-70" : ""
-              }`}
-              disabled={
-                !currentVariation ||
-                currentVariation.quantity <= 0 ||
-                isAddingToCart
-              }
-              onClick={handleAddToCart}
-            >
-              {isAddingToCart ? "Adding to Cart..." : "Add to Cart"}
-            </button>
+              ) : (
+                <p className="text-2xl lg:text-3xl font-bold">
+                  {" "}
+                  {formatCurrency(displayVariationForPriceAndStock.price)}{" "}
+                </p>
+              )
+            ) : (
+              <p className="text-2xl lg:text-3xl font-bold">
+                {" "}
+                {formatCurrency(product.sellingPrice)}{" "}
+              </p>
+            )}
           </div>
-        </div>
-      </div>
-    </div>
+          {hasDiscount && displayVariationForPriceAndStock && (
+            <p className="text-xs text-muted-foreground -mt-4 mb-5">
+              {tierName} member price
+            </p>
+          )}
+          {/* Description */}
+          <p className="text-sm text-muted-foreground mb-6 line-clamp-3">
+            {product.description}
+          </p>
+
+          {/* Conditional Variation/Image Selector */}
+          <div className="mb-5">
+            {!isGalleryMode &&
+              product.variations &&
+              product.variations.length > 0 && (
+                <VariationSelector
+                  variations={product.variations}
+                  selectedColor={selectedColor}
+                  selectedSize={selectedSize}
+                  onColorSelect={handleColorSelect}
+                  onSizeSelect={handleSizeSelect}
+                  currentVariation={currentVariation}
+                />
+              )}
+          </div>
+
+          {/* Quantity Selector */}
+          <div className="mb-5">
+            <label
+              htmlFor="quantity"
+              className="block text-sm font-medium mb-1 text-foreground"
+            >
+              {" "}
+              Quantity{" "}
+            </label>
+            <div className="flex items-center w-fit">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 rounded-r-none border-r-0"
+                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                disabled={
+                  !(isGalleryMode
+                    ? primaryVariationForCart
+                    : currentVariation) ||
+                  (isGalleryMode ? primaryVariationForCart : currentVariation)!
+                    .quantity <= 0 ||
+                  isAddingToCart ||
+                  quantity <= 1
+                }
+                aria-label="Decrease quantity"
+              >
+                {" "}
+                <span className="text-lg">−</span>{" "}
+              </Button>
+              <Input
+                type="number"
+                id="quantity"
+                className="w-14 h-9 text-center border-y border-border bg-background text-foreground focus:outline-none focus:ring-0 rounded-none disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                min="1"
+                max={
+                  (isGalleryMode ? primaryVariationForCart : currentVariation)
+                    ?.quantity ?? 1
+                }
+                value={quantity}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  const maxQty =
+                    (isGalleryMode ? primaryVariationForCart : currentVariation)
+                      ?.quantity ?? 1;
+                  let val = parseInt(e.target.value);
+                  if (isNaN(val) || val < 1) {
+                    val = 1;
+                  } else if (val > maxQty) {
+                    val = maxQty;
+                  }
+                  setQuantity(val);
+                }}
+                disabled={
+                  !(isGalleryMode
+                    ? primaryVariationForCart
+                    : currentVariation) ||
+                  (isGalleryMode ? primaryVariationForCart : currentVariation)!
+                    .quantity <= 0 ||
+                  isAddingToCart
+                }
+                aria-label="Product quantity"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 rounded-l-none border-l-0"
+                onClick={() => {
+                  const maxQty =
+                    (isGalleryMode ? primaryVariationForCart : currentVariation)
+                      ?.quantity ?? 1;
+                  setQuantity(Math.min(maxQty, quantity + 1));
+                }}
+                disabled={
+                  !(isGalleryMode
+                    ? primaryVariationForCart
+                    : currentVariation) ||
+                  (isGalleryMode ? primaryVariationForCart : currentVariation)!
+                    .quantity <= 0 ||
+                  quantity >=
+                    ((isGalleryMode
+                      ? primaryVariationForCart
+                      : currentVariation
+                    )?.quantity ?? 1) ||
+                  isAddingToCart
+                }
+                aria-label="Increase quantity"
+              >
+                {" "}
+                <span className="text-lg">+</span>{" "}
+              </Button>
+            </div>
+            {/* Stock Display */}
+            {(isGalleryMode ? primaryVariationForCart : currentVariation) && (
+              <p
+                className={cn(
+                  "text-xs mt-1.5",
+                  (isGalleryMode ? primaryVariationForCart : currentVariation)!
+                    .quantity > 0
+                    ? "text-green-600"
+                    : "text-red-600",
+                )}
+              >
+                {" "}
+                {(isGalleryMode ? primaryVariationForCart : currentVariation)!
+                  .quantity > 0
+                  ? `In Stock (${(isGalleryMode ? primaryVariationForCart : currentVariation)!.quantity} available)`
+                  : "Out of Stock"}{" "}
+              </p>
+            )}
+            {/* Unavailable message */}
+            {!isGalleryMode &&
+              !currentVariation &&
+              selectedColor &&
+              selectedSize && (
+                <p className="text-xs mt-1.5 text-destructive">
+                  {" "}
+                  Selected combination unavailable.{" "}
+                </p>
+              )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 mt-auto pt-2">
+            <Button
+              variant="outline"
+              size="lg"
+              className="flex-1"
+              disabled={
+                !(isGalleryMode ? primaryVariationForCart : currentVariation) ||
+                (isGalleryMode ? primaryVariationForCart : currentVariation)!
+                  .quantity <= 0 ||
+                isAddingToCart ||
+                quantity >
+                  ((isGalleryMode ? primaryVariationForCart : currentVariation)
+                    ?.quantity ?? 0)
+              }
+              onClick={() => handleAddToCart(false)}
+            >
+              {" "}
+              {isAddingToCart ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}{" "}
+              {(isGalleryMode ? primaryVariationForCart : currentVariation) &&
+              (isGalleryMode ? primaryVariationForCart : currentVariation)!
+                .quantity <= 0
+                ? "Out of Stock"
+                : isAddingToCart
+                  ? "Adding..."
+                  : "Add to Cart"}{" "}
+            </Button>
+            <Button
+              variant="default"
+              size="lg"
+              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+              disabled={
+                !(isGalleryMode ? primaryVariationForCart : currentVariation) ||
+                (isGalleryMode ? primaryVariationForCart : currentVariation)!
+                  .quantity <= 0 ||
+                isAddingToCart ||
+                quantity >
+                  ((isGalleryMode ? primaryVariationForCart : currentVariation)
+                    ?.quantity ?? 0)
+              }
+              onClick={() => handleAddToCart(true)}
+            >
+              {" "}
+              Buy Now{" "}
+            </Button>
+          </div>
+        </div>{" "}
+        {/* End Details Column */}
+      </div>{" "}
+      {/* End Grid */}
+    </div> // End Max Width Container
   );
 }
